@@ -77,6 +77,6 @@ python3 spot_bot.py --selftest                        # تست منطق بدون
 | `NEED_BTC_OK` | `1` | خرید فقط وقتی بیت‌کوین سالم است |
 
 ### اجرای رایگان ۲۴ ساعته با GitHub Actions
-فایل `.github/workflows/spot-bot.yml` هر ساعت ربات را اجرا می‌کند.
+محتوای `deploy/github-actions-spot-bot.yml` را در گیت‌هاب به مسیر `.github/workflows/spot-bot.yml` اضافه کن تا هر ساعت ربات اجرا شود.
 کافی است در `Settings → Secrets and variables → Actions` دو سکرت بسازی:
 `BOT_TOKEN` و `CHAT_ID`.
