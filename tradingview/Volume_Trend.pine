@@ -1,0 +1,170 @@
+//@version=6
+// ═══════════════════════════════════════════════════════════════════════════
+//  Volume Trend — حجم افزایشی است یا کاهشی؟
+//  ✍️  طراحی و توسعه توسط آرمان ناصری
+//
+//  یک اندیکاتور تک‌کاره: فقط می‌گوید حجم بازار در حال «افزایش» است یا «کاهش».
+//    • مقایسه میانگین حجم N کندل اخیر با N کندل قبل‌تر  (درصد تغییر)
+//    • شیب خط رگرسیون حجم (سرعت تغییر)
+//    • نسبت حجم کندل فعلی به میانگین
+//    • خط روند حجم که رنگش با جهت عوض می‌شود
+//    • پنل متنی بزرگ + هشدار در لحظه‌ی تغییر وضعیت
+// ═══════════════════════════════════════════════════════════════════════════
+
+indicator("Volume Trend — افزایشی یا کاهشی [Arman Naseri]", shorttitle = "VOL TREND",
+     overlay = false, format = format.volume, max_labels_count = 100)
+
+// ───────────────────────────────── INPUTS ─────────────────────────────────
+var string g1 = "📊 محاسبه"
+volLen   = input.int(20, "دوره میانگین حجم",        minval = 3,  group = g1)
+cmpLen   = input.int(10, "دوره مقایسه (اخیر ↔ قبل)", minval = 2,  group = g1)
+slopeLen = input.int(10, "دوره شیب روند حجم",        minval = 3,  group = g1)
+upPct    = input.float(8,  "آستانه «افزایشی» (٪)",   minval = 1, step = 1, group = g1)
+strongPct= input.float(25, "آستانه «افزایشی قوی» (٪)",minval = 5, step = 1, group = g1)
+spikeMult= input.float(2.0,"آستانه حجم انفجاری (× میانگین)", minval = 1.1, step = 0.1, group = g1)
+
+var string g2 = "🎨 نمایش"
+showMA    = input.bool(true,  "خط میانگین حجم",           group = g2)
+showTrend = input.bool(true,  "خط روند حجم (رنگی)",        group = g2)
+tintBg    = input.bool(true,  "رنگ پس‌زمینه بر اساس وضعیت", group = g2)
+showFlip  = input.bool(true,  "علامت لحظه تغییر وضعیت",     group = g2)
+colUp     = input.color(#26a69a, "رنگ افزایشی", group = g2)
+colDn     = input.color(#ef5350, "رنگ کاهشی",  group = g2)
+colFlat   = input.color(#787b86, "رنگ خنثی",   group = g2)
+colSpike  = input.color(#ff9800, "رنگ انفجاری", group = g2)
+
+var string g3 = "🖥️ پنل"
+panelMode = input.string("برچسب (موبایل)", "نوع نمایش پنل",
+     options = ["برچسب (موبایل)", "جدول", "هر دو", "هیچ‌کدام"], group = g3)
+panelOnChart = input.bool(false, "پنل روی چارت اصلی نمایش داده شود", group = g3)
+tblPos    = input.string("بالا-راست", "محل جدول",
+     options = ["بالا-راست", "بالا-چپ", "پایین-راست", "پایین-چپ"], group = g3)
+sigText   = input.string("طراحی و توسعه توسط آرمان ناصری", "امضا", group = g3)
+
+// ──────────────────────────── CALCULATIONS ────────────────────────────────
+volMA    = ta.sma(volume, volLen)
+volRatio = volMA > 0 ? volume / volMA : 0.0
+
+// ① مقایسه میانگین حجم اخیر با قبلی  → درصد تغییر
+recentAvg = ta.sma(volume, cmpLen)
+priorAvg  = recentAvg[cmpLen]
+chgPct    = nz(priorAvg) > 0 ? (recentAvg - priorAvg) / priorAvg * 100 : 0.0
+
+// ② شیب رگرسیون حجم (سرعت تغییر، بر حسب درصد میانگین در هر کندل)
+slopeRaw = ta.linreg(volume, slopeLen, 0) - ta.linreg(volume, slopeLen, 1)
+slopePct = volMA > 0 ? slopeRaw / volMA * 100 : 0.0
+
+// ③ وضعیت نهایی
+isSpike = volRatio >= spikeMult
+state   = chgPct >=  strongPct ? 2 :
+          chgPct >=  upPct     ? 1 :
+          chgPct <= -strongPct ? -2 :
+          chgPct <= -upPct     ? -1 : 0
+
+stateTxt = state ==  2 ? "افزایش شدید حجم ⬆⬆" :
+           state ==  1 ? "حجم در حال افزایش ⬆" :
+           state == -1 ? "حجم در حال کاهش ⬇"   :
+           state == -2 ? "کاهش شدید حجم ⬇⬇"    : "حجم ثابت ➡"
+
+stateCol = state > 0 ? colUp : state < 0 ? colDn : colFlat
+
+// ───────────────────────────── VISUALS ────────────────────────────────────
+barCol = isSpike ? colSpike :
+     state > 0 ? color.new(colUp,  volume > volMA ? 0  : 45) :
+     state < 0 ? color.new(colDn,  volume > volMA ? 10 : 55) :
+                 color.new(colFlat, volume > volMA ? 20 : 60)
+
+plot(volume, "حجم", style = plot.style_columns, color = barCol)
+plot(showMA ? volMA : na, "میانگین حجم", color = color.new(color.white, 25), linewidth = 1)
+plot(showTrend ? ta.ema(volume, cmpLen) : na, "روند حجم", color = color.new(stateCol, 0), linewidth = 3)
+
+bgcolor(tintBg ? color.new(stateCol, state == 0 ? 96 : 90) : na)
+
+flipUp = ta.crossover(chgPct,  upPct)
+flipDn = ta.crossunder(chgPct, -upPct)
+plotshape(showFlip and flipUp, "شروع افزایش حجم", shape.triangleup,
+     location.bottom, color = colUp,  size = size.tiny)
+plotshape(showFlip and flipDn, "شروع کاهش حجم",  shape.triangledown,
+     location.bottom, color = colDn,  size = size.tiny)
+plotchar(isSpike, "حجم انفجاری", "▲", location.bottom, color = colSpike, size = size.tiny)
+
+// ───────────────────────────── PANEL ──────────────────────────────────────
+f_pos(string p) =>
+    switch p
+        "بالا-راست"  => position.top_right
+        "بالا-چپ"    => position.top_left
+        "پایین-راست" => position.bottom_right
+        "پایین-چپ"   => position.bottom_left
+        => position.top_right
+
+meter(float pct) =>
+    int f = int(math.max(1, math.min(5, math.round(math.abs(nz(pct)) / (strongPct / 5.0)))))
+    str.repeat(pct >= 0 ? "▰" : "▱", f) + (f < 5 ? str.repeat("·", 5 - f) : "")
+
+useTbl = panelMode == "جدول" or panelMode == "هر دو"
+useLbl = panelMode == "برچسب (موبایل)" or panelMode == "هر دو"
+
+pctTxt   = (chgPct >= 0 ? "+" : "") + str.tostring(chgPct, "#.#") + "%"
+speedTxt = (slopePct >= 0 ? "+" : "") + str.tostring(slopePct, "#.#") + "% در هر کندل"
+curTxt   = "×" + str.tostring(volRatio, "#.##") + " میانگین" + (isSpike ? "  🔥" : "")
+
+var table t = table.new(f_pos(tblPos), 2, 7, border_width = 1, frame_width = 1,
+     frame_color = color.new(color.gray, 60), bgcolor = color.new(#131722, 10))
+
+row(int r, string k, string v, color c) =>
+    table.cell(t, 0, r, k, text_size = size.tiny, text_color = color.new(color.white, 30), text_halign = text.align_left)
+    table.cell(t, 1, r, v, text_size = size.tiny, text_color = c, text_halign = text.align_left)
+
+if useTbl and barstate.islast
+    table.cell(t, 0, 0, "🔊 وضعیت حجم", text_size = size.small, text_color = color.white, bgcolor = color.new(#2962ff, 20))
+    table.cell(t, 1, 0, "", bgcolor = color.new(#2962ff, 20))
+    table.merge_cells(t, 0, 0, 1, 0)
+    row(1, "وضعیت",  stateTxt, stateCol)
+    row(2, "قدرت",   meter(chgPct), stateCol)
+    row(3, str.tostring(cmpLen) + " کندل اخیر", pctTxt + " نسبت به قبل", stateCol)
+    row(4, "سرعت تغییر", speedTxt, slopePct >= 0 ? colUp : colDn)
+    row(5, "کندل فعلی",  curTxt, isSpike ? colSpike : color.new(color.white, 10))
+    table.cell(t, 0, 6, "✍️ " + sigText, text_size = size.tiny, text_color = color.new(color.white, 10),
+         bgcolor = color.new(#2962ff, 45))
+    table.cell(t, 1, 6, "", bgcolor = color.new(#2962ff, 45))
+    table.merge_cells(t, 0, 6, 1, 6)
+
+var label lb = na
+hiVol = ta.highest(volume, 50)
+
+panelTxt() =>
+    "🔊 " + stateTxt +
+     "\n──────────────" +
+     "\nمیانگین " + str.tostring(cmpLen) + " کندل اخیر: " + pctTxt +
+     "\nقدرت: " + meter(chgPct) +
+     "\nسرعت: " + speedTxt +
+     "\nکندل فعلی: " + curTxt +
+     "\n✍️ " + sigText
+
+if useLbl and barstate.islast
+    label.delete(lb)
+    if panelOnChart
+        lb := label.new(bar_index, hiVol * 0.95, panelTxt(), style = label.style_label_left,
+             color = color.new(#131722, 12), textcolor = stateCol, size = size.small,
+             textalign = text.align_left, force_overlay = true)
+    else
+        lb := label.new(bar_index, hiVol * 0.95, panelTxt(), style = label.style_label_left,
+             color = color.new(#131722, 12), textcolor = stateCol, size = size.small,
+             textalign = text.align_left)
+
+// ───────────────────────────── ALERTS ─────────────────────────────────────
+alertcondition(flipUp,  "⬆ حجم شروع به افزایش کرد", "Volume trend turned UP")
+alertcondition(flipDn,  "⬇ حجم شروع به کاهش کرد",  "Volume trend turned DOWN")
+alertcondition(isSpike, "🔥 حجم انفجاری",           "Volume spike")
+
+if flipUp or flipDn
+    alert((flipUp ? "⬆ حجم در حال افزایش است " : "⬇ حجم در حال کاهش است ") + syminfo.ticker +
+         " | " + timeframe.period +
+         "\nتغییر: " + pctTxt + " نسبت به " + str.tostring(cmpLen) + " کندل قبل" +
+         "\nسرعت: " + speedTxt +
+         "\n— " + sigText, alert.freq_once_per_bar_close)
+
+if isSpike
+    alert("🔥 حجم انفجاری " + syminfo.ticker + " | " + timeframe.period +
+         "\n" + curTxt + "\nوضعیت: " + stateTxt +
+         "\n— " + sigText, alert.freq_once_per_bar_close)
