@@ -1,0 +1,154 @@
+:root{
+  --bg:#080b12; --bg2:#0d111a; --card:#121826; --card2:#161d2e;
+  --line:#222a3d; --tx:#e8eef7; --mu:#8b98b3;
+  --ac:#3b82f6; --gr:#22c55e; --rd:#ef4444; --or:#f59e0b; --pu:#a855f7;
+  --shadow:0 10px 30px rgba(0,0,0,.45);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  background:radial-gradient(1200px 600px at 80% -10%, #14203a 0%, var(--bg) 60%);
+  color:var(--tx);font-family:system-ui,'Segoe UI',Tahoma,sans-serif;
+  line-height:1.9;padding-bottom:60px;min-height:100vh;
+}
+h1,h2,h3{margin:0}
+.muted{color:var(--mu);font-size:13px}
+
+/* ── هدر ── */
+.topbar{display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;
+  padding:14px 16px;background:rgba(13,17,26,.85);backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line);position:sticky;top:0;z-index:40}
+.brand{display:flex;gap:11px;align-items:center}
+.logo{font-size:26px}
+.topbar h1{font-size:18px}
+.by{color:var(--mu);font-size:11.5px}
+.market{display:flex;gap:8px;flex-wrap:wrap}
+.mk{background:var(--card);border:1px solid var(--line);border-radius:11px;
+  padding:5px 12px;min-width:92px}
+.mk span{display:block;color:var(--mu);font-size:10.5px;line-height:1.5}
+.mk b{font-size:14px;line-height:1.6}
+
+.banner{background:#3a2a0a;border-bottom:1px solid #6b4e12;color:#ffd79a;
+  padding:9px 16px;font-size:13px;text-align:center}
+
+/* ── تب‌ها ── */
+.tabs{display:flex;gap:6px;padding:12px 16px 0;overflow-x:auto}
+.tab{background:var(--card);border:1px solid var(--line);color:var(--mu);
+  border-radius:12px 12px 0 0;padding:9px 16px;font:inherit;font-size:13.5px;
+  cursor:pointer;white-space:nowrap}
+.tab.on{background:var(--card2);color:var(--tx);border-bottom-color:transparent;
+  box-shadow:inset 0 2px 0 var(--ac)}
+.badge{background:var(--ac);color:#fff;border-radius:99px;padding:0 7px;font-size:11px;margin-right:4px}
+
+.page{display:none;padding:16px;max-width:1280px;margin:0 auto}
+.page.on{display:block}
+
+/* ── کنترل‌ها ── */
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.seg{display:flex;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.seg button{background:none;border:none;color:var(--mu);padding:8px 14px;font:inherit;
+  font-size:13px;cursor:pointer}
+.seg button.on{background:var(--ac);color:#fff}
+.slider{display:flex;align-items:center;gap:9px;background:var(--card);border:1px solid var(--line);
+  border-radius:12px;padding:5px 14px;font-size:13px}
+.slider input{accent-color:var(--ac);width:110px}
+.btn{background:var(--card);border:1px solid var(--line);color:var(--tx);border-radius:12px;
+  padding:9px 16px;font:inherit;font-size:13.5px;cursor:pointer;transition:.15s}
+.btn:hover{border-color:var(--ac)}
+.btn.primary{background:var(--ac);border-color:var(--ac);color:#fff;font-weight:600}
+.btn.buy{background:var(--gr);border-color:var(--gr);color:#04140a;font-weight:700}
+.btn.danger{background:#2a1214;border-color:#5b2126;color:#ff9a9a}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+
+.progress{position:relative;height:28px;background:var(--card);border:1px solid var(--line);
+  border-radius:10px;overflow:hidden;margin-bottom:14px}
+.progress .bar{height:100%;background:linear-gradient(90deg,#1d4ed8,#3b82f6);width:0;transition:.25s}
+.progress span{position:absolute;inset:0;display:grid;place-items:center;font-size:12.5px}
+
+/* ── کارت‌ها ── */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
+.card.pad{padding:16px;margin-bottom:14px}
+.coin{padding:14px;cursor:pointer;transition:.15s;position:relative;overflow:hidden}
+.coin:hover{border-color:var(--ac);transform:translateY(-2px)}
+.coin .top{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.sym{font-size:17px;font-weight:700;letter-spacing:.3px}
+.pair{color:var(--mu);font-size:11px}
+.score{margin-right:auto;font-size:20px;font-weight:800;padding:2px 12px;border-radius:11px}
+.s-hi{background:rgba(34,197,94,.16);color:#4ade80}
+.s-md{background:rgba(245,158,11,.16);color:#fbbf24}
+.s-lo{background:rgba(148,163,184,.13);color:#94a3b8}
+.state{font-size:13px;margin-bottom:8px}
+.kv{display:flex;justify-content:space-between;font-size:12.5px;color:var(--mu);
+  border-top:1px dashed var(--line);padding-top:5px;margin-top:5px}
+.kv b{color:var(--tx);font-weight:600;direction:ltr}
+.up{color:var(--gr)} .dn{color:var(--rd)} .wa{color:var(--or)}
+.spark{width:100%;height:42px;display:block;margin:8px 0 2px}
+
+.empty{text-align:center;color:var(--mu);padding:40px 20px;font-size:14px}
+.sumbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.sumbar div{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:8px 15px;font-size:13px}
+.sumbar b{font-size:16px;display:block}
+
+/* ── معامله باز ── */
+.pos{padding:15px}
+.pos .head{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.pnl{margin-right:auto;font-size:19px;font-weight:800;direction:ltr}
+.track{height:9px;background:#0b1120;border-radius:99px;margin:11px 0 5px;position:relative;overflow:hidden}
+.track i{position:absolute;inset:0 auto 0 0;height:100%;border-radius:99px;
+  background:linear-gradient(90deg,var(--rd),var(--or),var(--gr))}
+.ticks{display:flex;justify-content:space-between;font-size:10.5px;color:var(--mu);direction:ltr}
+.advice{border-radius:11px;padding:9px 12px;font-size:13px;margin-top:10px}
+.ad-hold{background:rgba(59,130,246,.12);color:#93c5fd}
+.ad-half{background:rgba(245,158,11,.14);color:#fcd34d}
+.ad-sell{background:rgba(239,68,68,.15);color:#fca5a5}
+.ad-win{background:rgba(34,197,94,.14);color:#86efac}
+
+.list .row-h{display:flex;gap:10px;align-items:center;background:var(--card);
+  border:1px solid var(--line);border-radius:13px;padding:11px 14px;margin-bottom:8px;font-size:13.5px}
+.list .row-h .pnl{font-size:15px}
+
+.row{display:flex;justify-content:space-between;align-items:center;gap:12px;
+  padding:7px 0;border-bottom:1px dashed var(--line)}
+.row:last-child{border:none}
+.row label{font-size:13.5px;color:var(--mu)}
+.row input[type=number],.row input[type=text]{background:#0b1120;border:1px solid var(--line);
+  color:var(--tx);border-radius:9px;padding:7px 11px;width:120px;font:inherit;font-size:14px;
+  direction:ltr;text-align:center}
+.row input[type=checkbox]{width:20px;height:20px;accent-color:var(--ac)}
+
+/* ── کشو ── */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(3px);
+  opacity:0;pointer-events:none;transition:.2s;z-index:50}
+.scrim.on{opacity:1;pointer-events:auto}
+.drawer{position:fixed;inset:0 0 0 auto;width:min(460px,100%);background:var(--bg2);
+  border-right:1px solid var(--line);z-index:60;transform:translateX(105%);
+  transition:.25s cubic-bezier(.4,0,.2,1);overflow-y:auto;box-shadow:var(--shadow)}
+.drawer.on{transform:none}
+.dr-head{display:flex;gap:12px;align-items:center;padding:15px;border-bottom:1px solid var(--line);
+  position:sticky;top:0;background:var(--bg2);z-index:2}
+.dr-head h2{font-size:19px}
+.x{background:var(--card);border:1px solid var(--line);color:var(--tx);width:34px;height:34px;
+  border-radius:10px;font-size:15px;cursor:pointer}
+.dr-body{padding:15px}
+.factors{margin:10px 0}
+.f{display:flex;align-items:center;gap:9px;font-size:12.5px;margin-bottom:5px}
+.f span{width:96px;color:var(--mu)}
+.f .fb{flex:1;height:7px;background:#0b1120;border-radius:99px;overflow:hidden}
+.f .fb i{display:block;height:100%;background:linear-gradient(90deg,#2563eb,#60a5fa)}
+.f b{width:34px;text-align:left;direction:ltr}
+.plan{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:12px;margin:12px 0}
+.plan .kv{border-top:none;padding:3px 0;margin:0;font-size:13px}
+.buybox{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:13px;margin-top:12px}
+
+footer{text-align:center;color:var(--mu);font-size:12px;padding:26px 16px;line-height:2}
+
+@media(max-width:620px){
+  .topbar{padding:11px}
+  .market{width:100%;justify-content:space-between}
+  .mk{flex:1;min-width:0;padding:5px 8px;text-align:center}
+  .page{padding:12px}
+  .controls{gap:8px}
+  .slider{flex:1}
+}

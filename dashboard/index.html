@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>دستیار ترید | آرمان ناصری</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💎</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">💎</span>
+    <div>
+      <h1>دستیار ترید</h1>
+      <span class="by">اسکن ۱۰۰ ارز برتر · همراه تا لحظه فروش</span>
+    </div>
+  </div>
+  <div class="market">
+    <div class="mk"><span>سلامت بازار</span><b id="btcHealth">—</b></div>
+    <div class="mk"><span>بیت‌کوین</span><b id="btcPrice">—</b></div>
+    <div class="mk"><span>فرصت خرید</span><b id="buyCount">—</b></div>
+    <div class="mk"><span>سود باز</span><b id="openPnl">—</b></div>
+  </div>
+</header>
+
+<div class="banner" id="demoBanner" hidden>
+  ⚠️ دسترسی به بایننس برقرار نشد — <b>حالت نمایشی</b> با دیتای ساختگی فعال است.
+  روی دستگاه خودت با اینترنت آزاد، دیتای واقعی می‌آید.
+</div>
+
+<nav class="tabs">
+  <button class="tab on" data-tab="scan">🔎 اسکنر</button>
+  <button class="tab" data-tab="pos">💼 معامله‌های من <span class="badge" id="posCount">0</span></button>
+  <button class="tab" data-tab="hist">📜 تاریخچه</button>
+  <button class="tab" data-tab="set">⚙️ تنظیمات</button>
+</nav>
+
+<!-- ─────────── اسکنر ─────────── -->
+<main class="page on" id="page-scan">
+  <div class="controls">
+    <div class="seg" id="tfSeg">
+      <button data-tf="15m">۱۵ دقیقه</button>
+      <button data-tf="1h" class="on">۱ ساعت</button>
+      <button data-tf="4h">۴ ساعت</button>
+    </div>
+    <div class="seg" id="filterSeg">
+      <button data-f="buy" class="on">فقط خرید 🟢</button>
+      <button data-f="near">نزدیک ⏳</button>
+      <button data-f="all">همه</button>
+    </div>
+    <label class="slider">حداقل امتیاز <b id="minScoreVal">65</b>
+      <input type="range" id="minScore" min="40" max="90" step="5" value="65">
+    </label>
+    <button class="btn primary" id="scanBtn">↻ اسکن بازار</button>
+  </div>
+
+  <div class="progress" id="progress" hidden><div class="bar" id="progressBar"></div><span id="progressTxt"></span></div>
+
+  <section class="grid" id="grid"></section>
+  <div class="empty" id="empty">برای شروع دکمه «اسکن بازار» را بزن — ۱۰۰ ارز برتر بررسی می‌شود.</div>
+</main>
+
+<!-- ─────────── معامله‌ها ─────────── -->
+<main class="page" id="page-pos">
+  <div class="sumbar" id="posSummary"></div>
+  <section class="grid" id="posGrid"></section>
+  <div class="empty" id="posEmpty">هنوز معامله‌ای ثبت نکرده‌ای. از تب اسکنر یک ارز را انتخاب کن و «خریدم» را بزن.</div>
+</main>
+
+<!-- ─────────── تاریخچه ─────────── -->
+<main class="page" id="page-hist">
+  <div class="sumbar" id="histSummary"></div>
+  <section class="list" id="histList"></section>
+  <div class="empty" id="histEmpty">هنوز معامله‌ی بسته‌شده‌ای نداری.</div>
+</main>
+
+<!-- ─────────── تنظیمات ─────────── -->
+<main class="page" id="page-set">
+  <section class="card pad">
+    <h3>🎯 استراتژی</h3>
+    <div class="row"><label>هدف اول (× ATR)</label><input type="number" id="s_tp1" step="0.1" value="1.2"></div>
+    <div class="row"><label>هدف دوم (× ATR)</label><input type="number" id="s_tp2" step="0.1" value="2.4"></div>
+    <div class="row"><label>حد ضرر (× ATR)</label><input type="number" id="s_sl" step="0.1" value="1.6"></div>
+    <div class="row"><label>حداکثر ساعت نگهداری</label><input type="number" id="s_hold" step="1" value="12"></div>
+    <div class="row"><label>سقف RSI برای خرید</label><input type="number" id="s_rsi" step="1" value="68"></div>
+    <div class="row"><label>تعداد ارز اسکن‌شده</label><input type="number" id="s_top" step="10" value="100"></div>
+    <div class="row"><label>مبلغ پیش‌فرض خرید ($)</label><input type="number" id="s_amt" step="5" value="10"></div>
+  </section>
+
+  <section class="card pad">
+    <h3>🔔 هشدارها</h3>
+    <div class="row"><label>اعلان مرورگر</label><button class="btn" id="notifBtn">فعال‌سازی</button></div>
+    <div class="row"><label>صدای هشدار</label><input type="checkbox" id="s_sound" checked></div>
+    <div class="row"><label>بروزرسانی قیمت هر (ثانیه)</label><input type="number" id="s_poll" step="5" value="20"></div>
+    <div class="row"><label>اسکن خودکار هر (دقیقه)</label><input type="number" id="s_auto" step="5" value="15"></div>
+  </section>
+
+  <section class="card pad">
+    <h3>💾 پشتیبان</h3>
+    <p class="muted">معامله‌ها فقط روی همین مرورگر ذخیره می‌شوند. برای انتقال، فایل پشتیبان بگیر.</p>
+    <div class="btnrow">
+      <button class="btn" id="exportBtn">⬇️ خروجی JSON</button>
+      <button class="btn" id="importBtn">⬆️ بازگردانی</button>
+      <button class="btn danger" id="resetBtn">🗑 پاک‌کردن همه</button>
+    </div>
+    <input type="file" id="importFile" accept="application/json" hidden>
+  </section>
+</main>
+
+<!-- ─────────── کشوی جزئیات ارز ─────────── -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="dr-head">
+    <button class="x" id="closeDrawer">✕</button>
+    <div><h2 id="drTitle">—</h2><span class="by" id="drSub">—</span></div>
+  </div>
+  <div class="dr-body" id="drBody"></div>
+</aside>
+
+<footer>
+  دیتا مستقیم از API عمومی بایننس · همه‌چیز در مرورگر خودت ذخیره می‌شود<br>
+  ✍️ طراحی و توسعه توسط آرمان ناصری · این ابزار توصیه مالی نیست
+</footer>
+
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
