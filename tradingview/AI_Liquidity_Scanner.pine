@@ -194,9 +194,9 @@ cvd      = ta.cum(delta)
 cvdSlope = ta.linreg(cvd, 20, 0) - ta.linreg(cvd, 20, 1)
 cvdNorm  = cvdSlope / math.max(ta.stdev(cvd - cvd[1], 50), 1e-10)
 
-htfEmaF  = request.security(syminfo.tickerid, htfTF, ta.ema(close, 21), lookahead = barmerge.lookahead_off)
-htfEmaS  = request.security(syminfo.tickerid, htfTF, ta.ema(close, 50), lookahead = barmerge.lookahead_off)
-htfRsi   = request.security(syminfo.tickerid, htfTF, ta.rsi(close, 14), lookahead = barmerge.lookahead_off)
+htfEmaF  = request.security(syminfo.tickerid, htfTF, ta.ema(close, 21), lookahead = barmerge.lookahead_off, ignore_invalid_symbol = true)
+htfEmaS  = request.security(syminfo.tickerid, htfTF, ta.ema(close, 50), lookahead = barmerge.lookahead_off, ignore_invalid_symbol = true)
+htfRsi   = request.security(syminfo.tickerid, htfTF, ta.rsi(close, 14), lookahead = barmerge.lookahead_off, ignore_invalid_symbol = true)
 
 // ══════════════════════════ LIQUIDITY ENGINE ══════════════════════════════
 type Liq
@@ -372,7 +372,7 @@ sMACD  = clamp((macdH / atrSafe) * 4, -1, 1)
 sStoch = clamp((stochK - 50) / 40, -1, 1)
 sVol   = clamp(cvdNorm / 2.0, -1, 1)
 sVWAP  = clamp((close - vwapV) / (atrSafe * 2), -1, 1)
-sHTF   = clamp(((htfEmaF - htfEmaS) / atrSafe) * 1.2, -1, 1) * 0.6 + clamp((htfRsi - 50) / 25, -1, 1) * 0.4
+sHTF   = clamp(((nz(htfEmaF, emaSlow) - nz(htfEmaS, emaSlow)) / atrSafe) * 1.2, -1, 1) * 0.6 + clamp((nz(htfRsi, 50) - 50) / 25, -1, 1) * 0.4
 sLiq   = clamp(liqMagnet * 1.2, -1, 1)
 
 sweepBonus = sweepDown and close > open ? 0.25 : sweepUp and close < open ? -0.25 : 0.0
@@ -602,21 +602,36 @@ barcolor(colorBars ? scoreCol : na)
 
 // ═══════════════════════ MULTI-SYMBOL SCANNER (15) ════════════════════════
 scTF = scanTF == "" ? timeframe.period : scanTF
-[c1,  k1,  x1,  r1]  = request.security(sym1,  scTF, f_engine(), lookahead = barmerge.lookahead_off, calc_bars_count = scanBars)
-[c2,  k2,  x2,  r2]  = request.security(sym2,  scTF, f_engine(), lookahead = barmerge.lookahead_off, calc_bars_count = scanBars)
-[c3,  k3,  x3,  r3]  = request.security(sym3,  scTF, f_engine(), lookahead = barmerge.lookahead_off, calc_bars_count = scanBars)
-[c4,  k4,  x4,  r4]  = request.security(sym4,  scTF, f_engine(), lookahead = barmerge.lookahead_off, calc_bars_count = scanBars)
-[c5,  k5,  x5,  r5]  = request.security(sym5,  scTF, f_engine(), lookahead = barmerge.lookahead_off, calc_bars_count = scanBars)
-[c6,  k6,  x6,  r6]  = request.security(sym6,  scTF, f_engine(), lookahead = barmerge.lookahead_off, calc_bars_count = scanBars)
-[c7,  k7,  x7,  r7]  = request.security(sym7,  scTF, f_engine(), lookahead = barmerge.lookahead_off, calc_bars_count = scanBars)
-[c8,  k8,  x8,  r8]  = request.security(sym8,  scTF, f_engine(), lookahead = barmerge.lookahead_off, calc_bars_count = scanBars)
-[c9,  k9,  x9,  r9]  = request.security(sym9,  scTF, f_engine(), lookahead = barmerge.lookahead_off, calc_bars_count = scanBars)
-[c10, k10, x10, r10] = request.security(sym10, scTF, f_engine(), lookahead = barmerge.lookahead_off, calc_bars_count = scanBars)
-[c11, k11, x11, r11] = request.security(sym11, scTF, f_engine(), lookahead = barmerge.lookahead_off, calc_bars_count = scanBars)
-[c12, k12, x12, r12] = request.security(sym12, scTF, f_engine(), lookahead = barmerge.lookahead_off, calc_bars_count = scanBars)
-[c13, k13, x13, r13] = request.security(sym13, scTF, f_engine(), lookahead = barmerge.lookahead_off, calc_bars_count = scanBars)
-[c14, k14, x14, r14] = request.security(sym14, scTF, f_engine(), lookahead = barmerge.lookahead_off, calc_bars_count = scanBars)
-[c15, k15, x15, r15] = request.security(sym15, scTF, f_engine(), lookahead = barmerge.lookahead_off, calc_bars_count = scanBars)
+[c1,  k1,  x1,  r1]  = request.security(sym1,  scTF, f_engine(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[c2,  k2,  x2,  r2]  = request.security(sym2,  scTF, f_engine(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[c3,  k3,  x3,  r3]  = request.security(sym3,  scTF, f_engine(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[c4,  k4,  x4,  r4]  = request.security(sym4,  scTF, f_engine(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[c5,  k5,  x5,  r5]  = request.security(sym5,  scTF, f_engine(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[c6,  k6,  x6,  r6]  = request.security(sym6,  scTF, f_engine(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[c7,  k7,  x7,  r7]  = request.security(sym7,  scTF, f_engine(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[c8,  k8,  x8,  r8]  = request.security(sym8,  scTF, f_engine(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[c9,  k9,  x9,  r9]  = request.security(sym9,  scTF, f_engine(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[c10, k10, x10, r10] = request.security(sym10, scTF, f_engine(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[c11, k11, x11, r11] = request.security(sym11, scTF, f_engine(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[c12, k12, x12, r12] = request.security(sym12, scTF, f_engine(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[c13, k13, x13, r13] = request.security(sym13, scTF, f_engine(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[c14, k14, x14, r14] = request.security(sym14, scTF, f_engine(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[c15, k15, x15, r15] = request.security(sym15, scTF, f_engine(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
 
 // ───────────────────────────── DASHBOARD ──────────────────────────────────
 f_pos(string p) =>
