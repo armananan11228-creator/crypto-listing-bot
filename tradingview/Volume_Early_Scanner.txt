@@ -1,0 +1,302 @@
+//@version=6
+// ═══════════════════════════════════════════════════════════════════════════
+//  Early Volume Scanner — شکار ارزهایی که تازه حجمشان شروع به افزایش کرده
+//  ✍️  طراحی و توسعه توسط آرمان ناصری
+//
+//  هدف: پیدا کردن ارزی که:
+//    ✅ حجمش تازه شروع به افزایش کرده (نه دیروز، همین چند کندل اخیر)
+//    ✅ قبلش دوره‌ی آرام و کم‌حجم داشته (پایه‌ی تمیز)
+//    ❌ هنوز منفجر نشده و حجمش به اشباع نرسیده
+//    ❌ قیمتش هنوز پامپ نشده و RSI به اشباع خرید نرسیده
+//
+//  یعنی نقطه‌ی «ابتدای موج»، نه وسط یا آخر آن.
+// ═══════════════════════════════════════════════════════════════════════════
+
+indicator("Early Volume Scanner [Arman Naseri]", shorttitle = "EARLY VOL",
+     overlay = true, max_labels_count = 100)
+
+// ───────────────────────────────── INPUTS ─────────────────────────────────
+var string g1 = "🌱 شرایط «تازه شروع شده»"
+cmpLen    = input.int(10,  "دوره مقایسه حجم (اخیر ↔ قبل)", minval = 2,  group = g1)
+volLen    = input.int(20,  "دوره میانگین حجم",             minval = 3,  group = g1)
+longLen   = input.int(50,  "دوره پایه (آرامش قبل)",        minval = 20, group = g1)
+minChg    = input.float(10, "حداقل رشد حجم (٪)",  minval = 1,  step = 1, group = g1)
+maxChg    = input.float(80, "حداکثر رشد حجم — بیشتر از این یعنی دیر شده (٪)", minval = 20, step = 5, group = g1)
+hotRatio  = input.float(2.5,"سقف حجم کندل فعلی (× میانگین)", minval = 1.2, step = 0.1, group = g1)
+freshBars = input.int(6,   "تازگی: حداکثر چند کندل از شروع رشد", minval = 1, maxval = 30, group = g1)
+maxRsi    = input.float(62, "سقف RSI (ضد اشباع خرید)", minval = 40, maxval = 90, step = 1, group = g1)
+maxRun    = input.float(6,  "حداکثر رشد قیمت در دوره مقایسه (٪)", minval = 1, step = 0.5, group = g1)
+minScore  = input.int(60,  "حداقل امتیاز برای «آماده»", minval = 10, maxval = 95, group = g1)
+
+var string g2 = "🔎 اسکنر"
+scanTF    = input.timeframe("", "تایم‌فریم اسکن (خالی = چارت)", group = g2)
+onlyReady = input.bool(false, "فقط ارزهای واجد شرایط را نشان بده", group = g2)
+scanBars  = input.int(600, "عمق محاسبه (کندل)", minval = 200, maxval = 5000, step = 100, group = g2)
+sym1  = input.symbol("BINANCE:BTCUSDT",  "ارز ۱",  group = g2)
+sym2  = input.symbol("BINANCE:ETHUSDT",  "ارز ۲",  group = g2)
+sym3  = input.symbol("BINANCE:SOLUSDT",  "ارز ۳",  group = g2)
+sym4  = input.symbol("BINANCE:BNBUSDT",  "ارز ۴",  group = g2)
+sym5  = input.symbol("BINANCE:XRPUSDT",  "ارز ۵",  group = g2)
+sym6  = input.symbol("BINANCE:DOGEUSDT", "ارز ۶",  group = g2)
+sym7  = input.symbol("BINANCE:ADAUSDT",  "ارز ۷",  group = g2)
+sym8  = input.symbol("BINANCE:AVAXUSDT", "ارز ۸",  group = g2)
+sym9  = input.symbol("BINANCE:LINKUSDT", "ارز ۹",  group = g2)
+sym10 = input.symbol("BINANCE:TONUSDT",  "ارز ۱۰", group = g2)
+sym11 = input.symbol("BINANCE:TRXUSDT",  "ارز ۱۱", group = g2)
+sym12 = input.symbol("BINANCE:DOTUSDT",  "ارز ۱۲", group = g2)
+sym13 = input.symbol("BINANCE:NEARUSDT", "ارز ۱۳", group = g2)
+sym14 = input.symbol("BINANCE:SUIUSDT",  "ارز ۱۴", group = g2)
+sym15 = input.symbol("BINANCE:LTCUSDT",  "ارز ۱۵", group = g2)
+
+var string g3 = "🖥️ نمایش"
+panelMode = input.string("برچسب (موبایل)", "نوع نمایش", options = ["برچسب (موبایل)", "جدول", "هر دو"], group = g3)
+tblPos    = input.string("پایین-راست", "محل جدول",
+     options = ["پایین-راست", "پایین-چپ", "بالا-راست", "بالا-چپ"], group = g3)
+markChart = input.bool(true, "علامت 🌱 روی چارت همین ارز", group = g3)
+sigText   = input.string("طراحی و توسعه توسط آرمان ناصری", "امضا", group = g3)
+
+// ───────────────────────────────── HELPERS ────────────────────────────────
+clamp(float x, float lo, float hi) => math.max(lo, math.min(hi, x))
+shortSym(string s) =>
+    string t = str.replace_all(s, "BINANCE:", "")
+    t := str.replace_all(t, "BYBIT:", "")
+    t := str.replace_all(t, "OKX:", "")
+    t := str.replace_all(t, "COINBASE:", "")
+    t := str.replace_all(t, "USDT.P", "")
+    t := str.replace_all(t, "USDT", "")
+    t
+
+// ═══════════════ موتور تحلیل «حجم در ابتدای راه» ═════════════════════════
+// خروجی: [امتیاز، رشد حجم٪، نسبت کندل فعلی، RSI، رشد قیمت٪، تازگی(کندل)]
+f_early() =>
+    float vMA    = ta.sma(volume, volLen)
+    float vLong  = ta.sma(volume, longLen)
+    float recent = ta.sma(volume, cmpLen)
+    float prior  = recent[cmpLen]
+    float chg    = nz(prior) > 0 ? (recent - prior) / prior * 100 : 0.0
+    float vr     = vMA > 0 ? volume / vMA : 0.0
+    float baseQ  = vLong > 0 ? nz(prior, vLong) / vLong : 1.0      // <1 یعنی قبلش آرام بوده
+    float r      = ta.rsi(close, 14)
+    float a      = math.max(ta.atr(14), syminfo.mintick)
+    float e      = ta.ema(close, 20)
+    float extn   = math.abs(close - e) / a
+    float pchg   = close[cmpLen] > 0 ? (close - close[cmpLen]) / close[cmpLen] * 100 : 0.0
+    float fresh  = nz(ta.barssince(ta.crossover(chg, minChg)), 999)
+
+    // فشار خرید (دلتای حجم)
+    float rng  = math.max(high - low, syminfo.mintick)
+    float cv   = ta.cum(((close - open) / rng) * volume)
+    float cs   = ta.linreg(cv, 20, 0) - ta.linreg(cv, 20, 1)
+    float bp   = clamp(cs / math.max(ta.stdev(cv - cv[1], 50), 1e-10) / 2, -1, 1)
+
+    // ── اجزای امتیاز (هر کدام ۰ تا ۱) ──
+    float sUp   = chg < minChg ? 0.0 : chg <= maxChg ? 1.0 : clamp(1 - (chg - maxChg) / maxChg, 0, 1)
+    float sCool = vr <= hotRatio ? 1.0 : clamp(1 - (vr - hotRatio) / hotRatio, 0, 1)
+    float sBase = baseQ <= 1.0 ? 1.0 : clamp(1 - (baseQ - 1) / 0.8, 0, 1)
+    float sFrsh = fresh <= freshBars ? 1.0 : clamp(1 - (fresh - freshBars) / (freshBars * 3.0), 0, 1)
+    float sRoom = r <= maxRsi ? 1.0 : clamp(1 - (r - maxRsi) / 20.0, 0, 1)
+    float sExt  = extn <= 2.0 ? 1.0 : clamp(1 - (extn - 2.0) / 2.0, 0, 1)
+    float sRun  = math.abs(pchg) <= maxRun ? 1.0 : clamp(1 - (math.abs(pchg) - maxRun) / maxRun, 0, 1)
+    float sBuy  = clamp(0.5 + bp / 2.0, 0, 1)
+
+    float sc = (sUp * 2.0 + sFrsh * 1.6 + sCool * 1.4 + sBase * 1.2 + sRoom * 1.0 + sRun * 1.0 + sExt * 0.6 + sBuy * 0.6) /
+         (2.0 + 1.6 + 1.4 + 1.2 + 1.0 + 1.0 + 0.6 + 0.6) * 100
+    [sc, chg, vr, r, pchg, fresh]
+
+// وضعیت بر اساس مقادیر
+stateOf(float sc, float chg, float vr, float r, float fresh) =>
+    string st = "—"
+    if chg <= -minChg
+        st := "💤 حجم کاهشی"
+    else if vr > hotRatio * 1.4 or chg > maxChg * 1.5 or r > 75
+        st := "⚠️ داغ / دیر"
+    else if sc >= minScore and chg >= minChg and fresh <= freshBars
+        st := "🌱 تازه شروع شده"
+    else if sc >= minScore * 0.8 and chg >= minChg
+        st := "✅ در حال رشد"
+    else if chg >= minChg
+        st := "… ضعیف"
+    st
+
+// ═══════════════════════ تحلیل ارز جاری چارت ════════════════════════════
+[mySc, myChg, myVr, myRsi, myPchg, myFresh] = f_early()
+myState = stateOf(mySc, myChg, myVr, myRsi, myFresh)
+myReady = myState == "🌱 تازه شروع شده"
+
+plotshape(markChart and myReady and not myReady[1], "شروع رشد حجم", shape.labelup,
+     location.belowbar, color = color.new(#26a69a, 0), text = "🌱", textcolor = color.white, size = size.small)
+
+// ═══════════════════════ اسکن ۱۵ ارز ═════════════════════════════════════
+scTF = scanTF == "" ? timeframe.period : scanTF
+[a1, b1, c1, d1, e1, f1]    = request.security(sym1,  scTF, f_early(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[a2, b2, c2, d2, e2, f2]    = request.security(sym2,  scTF, f_early(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[a3, b3, c3, d3, e3, f3]    = request.security(sym3,  scTF, f_early(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[a4, b4, c4, d4, e4, f4]    = request.security(sym4,  scTF, f_early(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[a5, b5, c5, d5, e5, f5]    = request.security(sym5,  scTF, f_early(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[a6, b6, c6, d6, e6, f6]    = request.security(sym6,  scTF, f_early(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[a7, b7, c7, d7, e7, f7]    = request.security(sym7,  scTF, f_early(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[a8, b8, c8, d8, e8, f8]    = request.security(sym8,  scTF, f_early(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[a9, b9, c9, d9, e9, f9]    = request.security(sym9,  scTF, f_early(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[a10, b10, c10, d10, e10, f10] = request.security(sym10, scTF, f_early(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[a11, b11, c11, d11, e11, f11] = request.security(sym11, scTF, f_early(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[a12, b12, c12, d12, e12, f12] = request.security(sym12, scTF, f_early(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[a13, b13, c13, d13, e13, f13] = request.security(sym13, scTF, f_early(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[a14, b14, c14, d14, e14, f14] = request.security(sym14, scTF, f_early(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[a15, b15, c15, d15, e15, f15] = request.security(sym15, scTF, f_early(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+
+// ───────────────────────────── نمایش ──────────────────────────────────────
+f_pos(string p) =>
+    switch p
+        "بالا-راست"  => position.top_right
+        "بالا-چپ"    => position.top_left
+        "پایین-راست" => position.bottom_right
+        "پایین-چپ"   => position.bottom_left
+        => position.bottom_right
+
+useTbl = panelMode == "جدول" or panelMode == "هر دو"
+useLbl = panelMode == "برچسب (موبایل)" or panelMode == "هر دو"
+
+var label lb = na
+loRef60 = ta.lowest(low, 60)
+
+var table t = table.new(f_pos(tblPos), 6, 18, border_width = 1, frame_width = 1,
+     frame_color = color.new(color.gray, 60), bgcolor = color.new(#131722, 10))
+
+fillRow(int r, int cols) =>
+    for c = 0 to cols - 1
+        table.cell(t, c, r, "")
+
+if barstate.islast
+    array<string> names = array.from(shortSym(sym1), shortSym(sym2), shortSym(sym3), shortSym(sym4), shortSym(sym5),
+                                     shortSym(sym6), shortSym(sym7), shortSym(sym8), shortSym(sym9), shortSym(sym10),
+                                     shortSym(sym11), shortSym(sym12), shortSym(sym13), shortSym(sym14), shortSym(sym15))
+    array<float> scA  = array.from(nz(a1), nz(a2), nz(a3), nz(a4), nz(a5), nz(a6), nz(a7), nz(a8),
+                                   nz(a9), nz(a10), nz(a11), nz(a12), nz(a13), nz(a14), nz(a15))
+    array<float> chgA = array.from(nz(b1), nz(b2), nz(b3), nz(b4), nz(b5), nz(b6), nz(b7), nz(b8),
+                                   nz(b9), nz(b10), nz(b11), nz(b12), nz(b13), nz(b14), nz(b15))
+    array<float> vrA  = array.from(nz(c1), nz(c2), nz(c3), nz(c4), nz(c5), nz(c6), nz(c7), nz(c8),
+                                   nz(c9), nz(c10), nz(c11), nz(c12), nz(c13), nz(c14), nz(c15))
+    array<float> rsA  = array.from(nz(d1), nz(d2), nz(d3), nz(d4), nz(d5), nz(d6), nz(d7), nz(d8),
+                                   nz(d9), nz(d10), nz(d11), nz(d12), nz(d13), nz(d14), nz(d15))
+    array<float> frA  = array.from(nz(f1, 999), nz(f2, 999), nz(f3, 999), nz(f4, 999), nz(f5, 999),
+                                   nz(f6, 999), nz(f7, 999), nz(f8, 999), nz(f9, 999), nz(f10, 999),
+                                   nz(f11, 999), nz(f12, 999), nz(f13, 999), nz(f14, 999), nz(f15, 999))
+    array<int> ord = array.sort_indices(scA, order.descending)
+
+    // ── جدول ──
+    if useTbl
+        fillRow(0, 6)
+        table.cell(t, 0, 0, "🌱 اسکنر حجمِ تازه‌بیدارشده · " + scTF, text_size = size.small,
+             text_color = color.white, bgcolor = color.new(#2962ff, 20))
+        table.merge_cells(t, 0, 0, 5, 0)
+        table.cell(t, 0, 1, "ارز",     text_size = size.tiny, text_color = color.new(color.white, 30))
+        table.cell(t, 1, 1, "رشد حجم", text_size = size.tiny, text_color = color.new(color.white, 30))
+        table.cell(t, 2, 1, "کندل",    text_size = size.tiny, text_color = color.new(color.white, 30))
+        table.cell(t, 3, 1, "RSI",     text_size = size.tiny, text_color = color.new(color.white, 30))
+        table.cell(t, 4, 1, "امتیاز",   text_size = size.tiny, text_color = color.new(color.white, 30))
+        table.cell(t, 5, 1, "وضعیت",   text_size = size.tiny, text_color = color.new(color.white, 30))
+        int row = 2
+        for j = 0 to array.size(ord) - 1
+            if row <= 16
+                int   k  = array.get(ord, j)
+                float sc = array.get(scA, k)
+                float ch = array.get(chgA, k)
+                float vr = array.get(vrA, k)
+                float rs = array.get(rsA, k)
+                float fr = array.get(frA, k)
+                string st = stateOf(sc, ch, vr, rs, fr)
+                bool ready = st == "🌱 تازه شروع شده" or st == "✅ در حال رشد"
+                if sc > 0 and (not onlyReady or ready)
+                    color stc = st == "🌱 تازه شروع شده" ? #26a69a :
+                         st == "✅ در حال رشد" ? color.new(#26a69a, 40) :
+                         st == "⚠️ داغ / دیر" ? color.orange :
+                         st == "💤 حجم کاهشی" ? #ef5350 : color.gray
+                    table.cell(t, 0, row, array.get(names, k), text_size = size.tiny, text_color = color.white)
+                    table.cell(t, 1, row, (ch >= 0 ? "+" : "") + str.tostring(ch, "#") + "%", text_size = size.tiny,
+                         text_color = ch > 0 ? #26a69a : #ef5350)
+                    table.cell(t, 2, row, "×" + str.tostring(vr, "#.#"), text_size = size.tiny,
+                         text_color = vr > hotRatio ? color.orange : color.new(color.white, 20))
+                    table.cell(t, 3, row, str.tostring(rs, "#"), text_size = size.tiny,
+                         text_color = rs > maxRsi ? color.orange : color.new(color.white, 20))
+                    table.cell(t, 4, row, str.tostring(sc, "#"), text_size = size.tiny, text_color = color.white,
+                         bgcolor = color.new(sc >= minScore ? #26a69a : sc >= minScore * 0.8 ? color.orange : color.gray, 65))
+                    table.cell(t, 5, row, st, text_size = size.tiny, text_color = stc)
+                    row += 1
+        fillRow(17, 6)
+        table.cell(t, 0, 17, "✍️ " + sigText, text_size = size.tiny, text_color = color.new(color.white, 10),
+             bgcolor = color.new(#2962ff, 45))
+        table.merge_cells(t, 0, 17, 5, 17)
+
+    // ── برچسب (موبایل) ──
+    if useLbl
+        string txt = "🌱 اسکنر حجمِ تازه‌بیدارشده · " + scTF + "\n──────────────"
+        int shown = 0
+        for j = 0 to array.size(ord) - 1
+            if shown < 10
+                int   k  = array.get(ord, j)
+                float sc = array.get(scA, k)
+                float ch = array.get(chgA, k)
+                float vr = array.get(vrA, k)
+                float rs = array.get(rsA, k)
+                float fr = array.get(frA, k)
+                string st = stateOf(sc, ch, vr, rs, fr)
+                bool ready = st == "🌱 تازه شروع شده" or st == "✅ در حال رشد"
+                if sc > 0 and (not onlyReady or ready)
+                    txt := txt + "\n" + str.tostring(sc, "#") + " · " + array.get(names, k) +
+                         "  حجم " + (ch >= 0 ? "+" : "") + str.tostring(ch, "#") + "%" +
+                         "  ×" + str.tostring(vr, "#.#") + "  " + st
+                    shown += 1
+        if shown == 0
+            txt := txt + "\nفعلاً ارزی با شرایط مناسب نیست"
+        txt := txt + "\n──────────────\nاین ارز: " + str.tostring(mySc, "#") + " · " + myState +
+             "\n✍️ " + sigText
+        label.delete(lb)
+        lb := label.new(bar_index, loRef60, txt, style = label.style_label_left,
+             color = color.new(#131722, 12), textcolor = color.white, size = size.small,
+             textalign = text.align_left)
+
+// ───────────────────────────── ALERTS ─────────────────────────────────────
+alertcondition(myReady and not myReady[1], "🌱 حجم این ارز تازه شروع به افزایش کرد",
+     "Early volume expansion started")
+
+if myReady and not myReady[1]
+    alert("🌱 شروع افزایش حجم " + syminfo.ticker + " | " + timeframe.period +
+         "\nرشد حجم: +" + str.tostring(myChg, "#") + "%" +
+         "\nکندل فعلی: ×" + str.tostring(myVr, "#.#") + " میانگین" +
+         "\nRSI: " + str.tostring(myRsi, "#") + "  (هنوز اشباع نشده)" +
+         "\nامتیاز: " + str.tostring(mySc, "#") + "/100" +
+         "\n— " + sigText, alert.freq_once_per_bar_close)
+
+// هشدار اسکنر: هر ارزی که تازه وارد فاز رشد حجم شد
+earlyMsg(string s, float sc, float ch, float vr, float rs, float fr) =>
+    string st = stateOf(nz(sc), nz(ch), nz(vr), nz(rs), nz(fr, 999))
+    nz(sc) > 0 and st == "🌱 تازه شروع شده" ?
+         "🌱 " + shortSym(s) + "  +" + str.tostring(ch, "#") + "%  امتیاز " + str.tostring(sc, "#") + "\n" : ""
+
+msgAll = earlyMsg(sym1, a1, b1, c1, d1, f1) + earlyMsg(sym2, a2, b2, c2, d2, f2) +
+         earlyMsg(sym3, a3, b3, c3, d3, f3) + earlyMsg(sym4, a4, b4, c4, d4, f4) +
+         earlyMsg(sym5, a5, b5, c5, d5, f5) + earlyMsg(sym6, a6, b6, c6, d6, f6) +
+         earlyMsg(sym7, a7, b7, c7, d7, f7) + earlyMsg(sym8, a8, b8, c8, d8, f8) +
+         earlyMsg(sym9, a9, b9, c9, d9, f9) + earlyMsg(sym10, a10, b10, c10, d10, f10) +
+         earlyMsg(sym11, a11, b11, c11, d11, f11) + earlyMsg(sym12, a12, b12, c12, d12, f12) +
+         earlyMsg(sym13, a13, b13, c13, d13, f13) + earlyMsg(sym14, a14, b14, c14, d14, f14) +
+         earlyMsg(sym15, a15, b15, c15, d15, f15)
+
+if str.length(msgAll) > 0 and barstate.isconfirmed
+    alert("🔎 ارزهایی که حجمشان تازه بیدار شده (" + scTF + "):\n" + msgAll + "— " + sigText,
+         alert.freq_once_per_bar_close)
