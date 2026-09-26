@@ -1,0 +1,417 @@
+//@version=6
+// ═══════════════════════════════════════════════════════════════════════════
+//  Market Direction & Order Blocks  —  1H Edition
+//  ✍️  طراحی و توسعه توسط آرمان ناصری
+//
+//  سه ماژول:
+//    ① جهت بازار : ساختار بازار (BOS/CHoCH) + EMA + شیب + بایاس تایم بالاتر
+//    ② اردربلاک معتبر : فقط اردربلاک‌هایی که با حرکت انفجاری و حجم بالا
+//       ساختار را شکسته‌اند؛ با درجه قدرت، وضعیت تاچ‌شده و باطل‌شده
+//    ③ حجم بازار : افزایشی یا کاهشی بودن حجم، فشار خرید/فروش، میله‌های
+//       حجم مستقیماً روی چارت
+//
+//  بهینه‌شده برای تایم‌فریم ۱ ساعته (اگر تایم دیگری باشد هشدار می‌دهد)
+// ═══════════════════════════════════════════════════════════════════════════
+
+indicator("Market Direction & Order Blocks [Arman Naseri]", shorttitle = "DIR+OB 1H",
+     overlay = true, max_boxes_count = 500, max_labels_count = 500, max_lines_count = 500)
+
+// ───────────────────────────────── INPUTS ─────────────────────────────────
+var string g1 = "🧭 جهت بازار"
+swLen      = input.int(5,    "حساسیت ساختار (پیوت)", minval = 2, maxval = 30, group = g1)
+emaFastLen = input.int(50,   "EMA میانی",  minval = 5,  group = g1)
+emaSlowLen = input.int(200,  "EMA بلند",   minval = 20, group = g1)
+htfBiasTF  = input.timeframe("240", "تایم‌فریم بالاتر (بایاس)", group = g1)
+showStruct = input.bool(true,  "نمایش برچسب BOS / CHoCH",  group = g1)
+showEmaLn  = input.bool(true,  "نمایش EMA رنگی",            group = g1)
+tintBg     = input.bool(false, "رنگ پس‌زمینه بر اساس جهت",   group = g1)
+colorCndl  = input.bool(true,  "رنگ کندل‌ها بر اساس جهت",    group = g1)
+
+var string g2 = "🟦 اردربلاک معتبر"
+showOB     = input.bool(true,  "نمایش اردربلاک‌ها",                        group = g2)
+obLookback = input.int(12,  "حداکثر فاصله تا کندل اردربلاک", minval = 3, maxval = 40, group = g2)
+dispATR    = input.float(1.5,"حداقل حرکت انفجاری (× ATR)", minval = 0.3, step = 0.1,  group = g2)
+obVolMult  = input.float(1.0,"حداقل حجم کندل اردربلاک (× میانگین)", minval = 0.1, step = 0.1, group = g2)
+obBodyOnly = input.bool(false, "فقط بدنه کندل (بدون سایه)",               group = g2)
+obTrendOnly= input.bool(false, "فقط اردربلاک هم‌جهت با روند",              group = g2)
+obMax      = input.int(4,   "تعداد اردربلاک هر سمت", minval = 1, maxval = 15, group = g2)
+obHideUsed = input.bool(true,  "حذف اردربلاک باطل‌شده",                    group = g2)
+obShowLbl  = input.bool(true,  "برچسب قدرت اردربلاک",                      group = g2)
+colOBbull  = input.color(color.new(#26a69a, 80), "اردربلاک صعودی", group = g2)
+colOBbear  = input.color(color.new(#ef5350, 80), "اردربلاک نزولی", group = g2)
+
+var string g3 = "📊 حجم بازار"
+volLen     = input.int(20,  "دوره میانگین حجم", minval = 5, group = g3)
+volTrendLen= input.int(10,  "دوره روند حجم",    minval = 3, group = g3)
+volSpike   = input.float(1.8,"آستانه حجم انفجاری (× میانگین)", minval = 1.0, step = 0.1, group = g3)
+showVolBars= input.bool(true, "میله‌های حجم روی چارت",        group = g3)
+volBarsN   = input.int(60,  "تعداد میله‌های حجم", minval = 20, maxval = 200, group = g3)
+volBarsPct = input.float(18,"ارتفاع ناحیه حجم (٪ چارت)", minval = 5, maxval = 40, step = 1, group = g3)
+markSpike  = input.bool(true, "علامت روی کندل‌های حجم انفجاری", group = g3)
+
+var string g4 = "🖥️ پنل"
+panelMode  = input.string("برچسب روی چارت (موبایل)", "نوع نمایش پنل",
+     options = ["برچسب روی چارت (موبایل)", "جدول (دسکتاپ)", "هیچ‌کدام"], group = g4)
+tblPos     = input.string("بالا-راست", "محل جدول",
+     options = ["بالا-راست", "بالا-چپ", "پایین-راست", "پایین-چپ"], group = g4)
+sigText    = input.string("طراحی و توسعه توسط آرمان ناصری", "امضا", group = g4)
+warnTF     = input.bool(true, "هشدار اگر تایم‌فریم ۱ ساعته نیست", group = g4)
+
+// ───────────────────────────────── HELPERS ────────────────────────────────
+clamp(float x, float lo, float hi) => math.max(lo, math.min(hi, x))
+
+// ──────────────────────────── BASE CALCULATIONS ───────────────────────────
+atr      = ta.atr(14)
+atrSafe  = math.max(atr, syminfo.mintick)
+emaMid   = ta.ema(close, emaFastLen)
+emaLong  = ta.ema(close, emaSlowLen)
+emaSlope = (emaMid - emaMid[5]) / atrSafe
+
+volMA    = ta.sma(volume, volLen)
+volRatio = volume / math.max(volMA, 1e-10)
+volSlope = ta.linreg(volume, volTrendLen, 0) - ta.linreg(volume, volTrendLen, 1)
+volRise  = volSlope > 0
+volNorm  = clamp(volSlope / math.max(volMA, 1e-10) * 5, -1, 1)
+
+// فشار خرید/فروش (تقریب دلتا)
+rng      = math.max(high - low, syminfo.mintick)
+delta    = ((close - open) / rng) * volume
+cvd      = ta.cum(delta)
+cvdSlope = ta.linreg(cvd, 20, 0) - ta.linreg(cvd, 20, 1)
+buyPress = clamp(cvdSlope / math.max(ta.stdev(cvd - cvd[1], 50), 1e-10) / 2, -1, 1)
+
+// بایاس تایم‌فریم بالاتر
+htfEma1 = request.security(syminfo.tickerid, htfBiasTF, ta.ema(close, 21),
+     lookahead = barmerge.lookahead_off, ignore_invalid_symbol = true)
+htfEma2 = request.security(syminfo.tickerid, htfBiasTF, ta.ema(close, 50),
+     lookahead = barmerge.lookahead_off, ignore_invalid_symbol = true)
+htfBias = nz(clamp((nz(htfEma1, close) - nz(htfEma2, close)) / atrSafe, -1, 1), 0)
+
+// ══════════════════════ ① MARKET STRUCTURE (BOS/CHoCH) ═══════════════════
+ph = ta.pivothigh(high, swLen, swLen)
+pl = ta.pivotlow(low,  swLen, swLen)
+
+var float lastPH    = na
+var float lastPL    = na
+var int   structDir = 0
+var int   lastBOSbar = 0
+bool bosUp   = false
+bool bosDown = false
+bool chochUp = false
+bool chochDn = false
+
+if not na(ph)
+    lastPH := ph
+if not na(pl)
+    lastPL := pl
+
+if not na(lastPH) and close > lastPH and close[1] <= lastPH
+    chochUp   := structDir == -1
+    bosUp     := true
+    structDir := 1
+    lastBOSbar := bar_index
+    lastPH    := na
+if not na(lastPL) and close < lastPL and close[1] >= lastPL
+    chochDn   := structDir == 1
+    bosDown   := true
+    structDir := -1
+    lastBOSbar := bar_index
+    lastPL    := na
+
+if showStruct and (bosUp or bosDown)
+    label.new(bar_index, bosUp ? low - atr * 0.5 : high + atr * 0.5,
+         bosUp ? (chochUp ? "CHoCH ▲" : "BOS ▲") : (chochDn ? "CHoCH ▼" : "BOS ▼"),
+         style = bosUp ? label.style_label_up : label.style_label_down,
+         color = color.new(bosUp ? #26a69a : #ef5350, 20),
+         textcolor = color.white, size = size.tiny)
+
+// ───────────────────────── جهت بازار (امتیاز کل) ──────────────────────────
+wStruct = 1.6
+wEma    = 1.0
+wCross  = 1.1
+wSlope  = 0.8
+wHtf    = 1.2
+wPress  = 0.7
+
+sStruct = structDir
+sEma    = clamp((close - emaMid) / (atrSafe * 2), -1, 1)
+sCross  = emaMid > emaLong ? 1.0 : -1.0
+sSlope  = clamp(emaSlope, -1, 1)
+sHtf    = htfBias
+sPress  = buyPress
+
+dirScore = (sStruct * wStruct + sEma * wEma + sCross * wCross + sSlope * wSlope + sHtf * wHtf + sPress * wPress) /
+     (wStruct + wEma + wCross + wSlope + wHtf + wPress)
+
+dirTxt = dirScore >  0.55 ? "صعودی قوی ⬆⬆" :
+         dirScore >  0.18 ? "صعودی ⬆"      :
+         dirScore < -0.55 ? "نزولی قوی ⬇⬇" :
+         dirScore < -0.18 ? "نزولی ⬇"      : "خنثی ➡"
+dirCol = dirScore >  0.18 ? #26a69a : dirScore < -0.18 ? #ef5350 : color.gray
+dirStrength = math.round(math.abs(dirScore) * 100)
+
+// ══════════════════════════ ② ORDER BLOCKS ═══════════════════════════════
+type OB
+    float top
+    float bot
+    int   bIdx
+    bool  bull
+    bool  tapped
+    float power
+    box   bx
+    label lb
+
+var array<OB> obs = array.new<OB>()
+
+findOB(bool bull) =>
+    int found = -1
+    for i = 1 to obLookback
+        bool opp = bull ? close[i] < open[i] : close[i] > open[i]
+        if opp and found == -1
+            found := i
+    found
+
+addOB(bool bull) =>
+    int idx = findOB(bull)
+    bool ok = false
+    if idx > 0
+        float oTop = obBodyOnly ? math.max(open[idx], close[idx]) : high[idx]
+        float oBot = obBodyOnly ? math.min(open[idx], close[idx]) : low[idx]
+        float disp = math.abs(close - close[idx]) / atrSafe
+        float vr   = nz(volume[idx] / math.max(volMA[idx], 1e-10), 0)
+        bool  trendOK = not obTrendOnly or (bull ? dirScore > 0 : dirScore < 0)
+        if disp >= dispATR and vr >= obVolMult and trendOK
+            float pw = clamp(vr / 3.0 + disp / 5.0, 0, 1)
+            box   bx = na
+            label lb = na
+            if showOB
+                bx := box.new(bar_index - idx, oTop, bar_index + 6, oBot,
+                     border_color = color.new(bull ? #26a69a : #ef5350, 40),
+                     bgcolor = bull ? colOBbull : colOBbear)
+                if obShowLbl
+                    lb := label.new(bar_index + 6, bull ? oBot : oTop,
+                         (bull ? "OB ▲ " : "OB ▼ ") + (pw > 0.66 ? "قوی" : pw > 0.33 ? "متوسط" : "ضعیف") +
+                         "  ×" + str.tostring(vr, "#.#"),
+                         style = label.style_label_left,
+                         color = color.new(bull ? #26a69a : #ef5350, 25),
+                         textcolor = color.white, size = size.tiny)
+            array.push(obs, OB.new(top = oTop, bot = oBot, bIdx = bar_index - idx, bull = bull,
+                 tapped = false, power = pw, bx = bx, lb = lb))
+            ok := true
+    ok
+
+bool newObBull = false
+bool newObBear = false
+if bosUp
+    newObBull := addOB(true)
+if bosDown
+    newObBear := addOB(false)
+
+// محدود کردن تعداد و مدیریت وضعیت
+bool obTapped   = false
+bool obBroken   = false
+float nearObTop = na
+float nearObBot = na
+int   nearObDir = 0
+
+if array.size(obs) > 0
+    for i = array.size(obs) - 1 to 0
+        if i < array.size(obs)
+            OB o = array.get(obs, i)
+            bool broken = o.bull ? close < o.bot : close > o.top
+            if broken
+                obBroken := true
+                if obHideUsed
+                    box.delete(o.bx)
+                    label.delete(o.lb)
+                    array.remove(obs, i)
+                else
+                    if not na(o.bx)
+                        box.set_bgcolor(o.bx, color.new(color.gray, 90))
+                        box.set_border_color(o.bx, color.new(color.gray, 70))
+            else
+                bool tap = o.bull ? low <= o.top and high >= o.bot : high >= o.bot and low <= o.top
+                if tap and not o.tapped
+                    o.tapped := true
+                    obTapped := true
+                    if not na(o.bx)
+                        box.set_border_color(o.bx, color.new(color.yellow, 20))
+                if not na(o.bx)
+                    box.set_right(o.bx, bar_index + 6)
+                if not na(o.lb)
+                    label.set_x(o.lb, bar_index + 6)
+                // نزدیک‌ترین اردربلاک به قیمت
+                if na(nearObTop) or math.abs((o.top + o.bot) / 2 - close) < math.abs((nz(nearObTop) + nz(nearObBot)) / 2 - close)
+                    nearObTop := o.top
+                    nearObBot := o.bot
+                    nearObDir := o.bull ? 1 : -1
+
+trimOB(bool bull) =>
+    int cnt = 0
+    if array.size(obs) > 0
+        for i = array.size(obs) - 1 to 0
+            OB o = array.get(obs, i)
+            if o.bull == bull
+                cnt += 1
+        if cnt > obMax
+            int drop = cnt - obMax
+            for i = 0 to array.size(obs) - 1
+                if drop <= 0
+                    break
+                if i < array.size(obs)
+                    OB o = array.get(obs, i)
+                    if o.bull == bull
+                        box.delete(o.bx)
+                        label.delete(o.lb)
+                        array.remove(obs, i)
+                        drop -= 1
+    cnt
+
+trimOB(true)
+trimOB(false)
+
+// ══════════════════════════ ③ VOLUME MODULE ══════════════════════════════
+volState = volRatio >= volSpike ? "انفجاری 🔥" : volRise ? "افزایشی ↑" : "کاهشی ↓"
+volCol   = volRatio >= volSpike ? color.orange : volRise ? #26a69a : #ef5350
+volPress = buyPress > 0.15 ? "فشار خرید 🟢" : buyPress < -0.15 ? "فشار فروش 🔴" : "متعادل ⚪"
+
+isSpike = volRatio >= volSpike
+plotchar(markSpike and isSpike, title = "حجم انفجاری", char = "▮",
+     location = location.belowbar, color = color.new(color.orange, 0), size = size.tiny)
+
+// میله‌های حجم روی چارت (پایین ناحیه قیمت)
+var array<line> volBars = array.new<line>()
+
+if showVolBars and barstate.islast
+    if array.size(volBars) > 0
+        for i = 0 to array.size(volBars) - 1
+            line.delete(array.get(volBars, i))
+        array.clear(volBars)
+    int   n    = int(math.min(volBarsN, bar_index))
+    float hiV  = ta.highest(high, math.max(n, 2))
+    float loV  = ta.lowest(low,  math.max(n, 2))
+    float span = math.max(hiV - loV, syminfo.mintick)
+    float zone = span * volBarsPct / 100.0
+    float base = loV - zone * 1.15
+    float maxV = 0.0
+    for b = 0 to n - 1
+        maxV := math.max(maxV, nz(volume[b]))
+    if maxV > 0
+        for b = 0 to n - 1
+            float v = nz(volume[b])
+            float h = zone * (v / maxV)
+            bool  up = close[b] >= open[b]
+            bool  big = nz(volume[b]) >= nz(volMA[b]) * volSpike
+            color c = big ? color.new(color.orange, 25) : color.new(up ? #26a69a : #ef5350, 55)
+            array.push(volBars, line.new(bar_index - b, base, bar_index - b, base + h,
+                 color = c, width = 3))
+
+// ═════════════════════════════ VISUALS ═══════════════════════════════════
+emaCol = dirScore > 0.18 ? color.new(#26a69a, 0) : dirScore < -0.18 ? color.new(#ef5350, 0) : color.new(color.gray, 20)
+plot(showEmaLn ? emaMid  : na, "EMA میانی", color = emaCol, linewidth = 2)
+plot(showEmaLn ? emaLong : na, "EMA بلند",  color = color.new(color.blue, 40), linewidth = 1)
+
+barcolor(colorCndl ? (dirScore > 0.18 ? color.new(#26a69a, 25) :
+     dirScore < -0.18 ? color.new(#ef5350, 25) : color.new(color.gray, 45)) : na)
+bgcolor(tintBg ? color.new(dirCol, 94) : na)
+
+// ═════════════════════════════ PANEL ═════════════════════════════════════
+f_pos(string p) =>
+    switch p
+        "بالا-راست"  => position.top_right
+        "بالا-چپ"    => position.top_left
+        "پایین-راست" => position.bottom_right
+        "پایین-چپ"   => position.bottom_left
+        => position.top_right
+
+meter(float s) =>
+    float v = nz(s, 0)
+    int f = int(math.max(1, math.min(5, math.round(math.abs(v) * 5))))
+    str.repeat(v >= 0 ? "▰" : "▱", f) + (f < 5 ? str.repeat("·", 5 - f) : "")
+
+tfWarn = warnTF and timeframe.period != "60" ? "⚠️ این اندیکاتور برای تایم ۱ ساعته تنظیم شده" : ""
+structTxt = structDir == 1 ? "صعودی (HH/HL)" : structDir == -1 ? "نزولی (LH/LL)" : "نامشخص"
+obTxt = na(nearObTop) ? "اردربلاک فعالی نیست" :
+     (nearObDir == 1 ? "🟩 OB صعودی  " : "🟥 OB نزولی  ") +
+     str.tostring(nearObBot, format.mintick) + " تا " + str.tostring(nearObTop, format.mintick)
+
+useTable = panelMode == "جدول (دسکتاپ)"
+useLabel = panelMode == "برچسب روی چارت (موبایل)"
+
+var table tbl = table.new(f_pos(tblPos), 2, 9, border_width = 1, frame_width = 1,
+     frame_color = color.new(color.gray, 60), bgcolor = color.new(#131722, 10))
+
+cellPair(int row, string k, string v, color vc) =>
+    table.cell(tbl, 0, row, k, text_size = size.tiny, text_color = color.new(color.white, 30), text_halign = text.align_left)
+    table.cell(tbl, 1, row, v, text_size = size.tiny, text_color = vc, text_halign = text.align_left)
+
+if useTable and barstate.islast
+    table.cell(tbl, 0, 0, "🧭 " + syminfo.ticker + " · " + timeframe.period, text_size = size.small,
+         text_color = color.white, bgcolor = color.new(#2962ff, 20))
+    table.cell(tbl, 1, 0, "", bgcolor = color.new(#2962ff, 20))
+    table.merge_cells(tbl, 0, 0, 1, 0)
+    cellPair(1, "جهت بازار", dirTxt + "  " + str.tostring(dirStrength) + "%", dirCol)
+    cellPair(2, "قدرت", meter(dirScore), dirCol)
+    cellPair(3, "ساختار", structTxt, structDir == 1 ? #26a69a : structDir == -1 ? #ef5350 : color.gray)
+    cellPair(4, "بایاس " + htfBiasTF, htfBias > 0.1 ? "صعودی ⬆" : htfBias < -0.1 ? "نزولی ⬇" : "خنثی", htfBias > 0.1 ? #26a69a : htfBias < -0.1 ? #ef5350 : color.gray)
+    cellPair(5, "حجم", volState + "  ×" + str.tostring(volRatio, "#.0"), volCol)
+    cellPair(6, "فشار", volPress + "  " + meter(buyPress), buyPress > 0 ? #26a69a : #ef5350)
+    cellPair(7, "نزدیک‌ترین OB", obTxt, nearObDir == 1 ? #26a69a : nearObDir == -1 ? #ef5350 : color.gray)
+    table.cell(tbl, 0, 8, "✍️ " + sigText, text_size = size.tiny, text_color = color.new(color.white, 10),
+         bgcolor = color.new(#2962ff, 45))
+    table.cell(tbl, 1, 8, "", bgcolor = color.new(#2962ff, 45))
+    table.merge_cells(tbl, 0, 8, 1, 8)
+
+var label panelLb = na
+hiRef = ta.highest(high, 60)
+
+if useLabel and barstate.islast
+    string txt = "🧭 " + syminfo.ticker + " · " + timeframe.period +
+         (tfWarn == "" ? "" : "\n" + tfWarn) +
+         "\n──────────────" +
+         "\nجهت بازار: " + dirTxt + "   " + str.tostring(dirStrength) + "%" +
+         "\nقدرت: " + meter(dirScore) +
+         "\nساختار: " + structTxt +
+         "\nبایاس " + htfBiasTF + ": " + (htfBias > 0.1 ? "صعودی ⬆" : htfBias < -0.1 ? "نزولی ⬇" : "خنثی ➡") +
+         "\n──────────────" +
+         "\nحجم: " + volState + "   ×" + str.tostring(volRatio, "#.0") +
+         "\nروند حجم: " + meter(volNorm) +
+         "\n" + volPress + "   " + meter(buyPress) +
+         "\n──────────────" +
+         "\n" + obTxt +
+         "\n✍️ " + sigText
+    label.delete(panelLb)
+    panelLb := label.new(bar_index, hiRef + atr * 2, txt, style = label.style_label_left,
+         color = color.new(#131722, 12), textcolor = color.white,
+         size = size.small, textalign = text.align_left)
+
+// ═════════════════════════════ ALERTS ════════════════════════════════════
+dirFlipUp = ta.crossover(dirScore, 0.18)
+dirFlipDn = ta.crossunder(dirScore, -0.18)
+
+alertcondition(dirFlipUp,  "🟢 چرخش جهت به صعودی", "Direction flipped BULLISH")
+alertcondition(dirFlipDn,  "🔴 چرخش جهت به نزولی", "Direction flipped BEARISH")
+alertcondition(bosUp,      "▲ شکست ساختار صعودی",  "BOS up")
+alertcondition(bosDown,    "▼ شکست ساختار نزولی",  "BOS down")
+alertcondition(newObBull,  "🟩 اردربلاک صعودی جدید", "New bullish OB")
+alertcondition(newObBear,  "🟥 اردربلاک نزولی جدید", "New bearish OB")
+alertcondition(obTapped,   "🎯 لمس اردربلاک",        "Order block tapped")
+alertcondition(isSpike,    "🔥 حجم انفجاری",          "Volume spike")
+
+if dirFlipUp or dirFlipDn
+    alert((dirFlipUp ? "🟢 جهت بازار صعودی شد " : "🔴 جهت بازار نزولی شد ") + syminfo.ticker +
+         " | " + timeframe.period +
+         "\nقدرت: " + str.tostring(dirStrength) + "%" +
+         "\nساختار: " + structTxt +
+         "\nحجم: " + volState +
+         "\n— " + sigText, alert.freq_once_per_bar_close)
+
+if newObBull or newObBear
+    alert((newObBull ? "🟩 اردربلاک صعودی معتبر " : "🟥 اردربلاک نزولی معتبر ") + syminfo.ticker +
+         " | " + timeframe.period + "\n" + obTxt +
+         "\nحجم: " + volState + "\n— " + sigText, alert.freq_once_per_bar_close)
+
+if obTapped
+    alert("🎯 قیمت وارد اردربلاک شد " + syminfo.ticker + " | " + timeframe.period +
+         "\n" + obTxt + "\nجهت بازار: " + dirTxt +
+         "\n— " + sigText, alert.freq_once_per_bar_close)
