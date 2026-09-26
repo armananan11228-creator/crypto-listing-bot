@@ -99,21 +99,21 @@ exchSel   = input.string("BINANCE", "صرافی (برای همه ارزها)",
                 "OKX", "MEXC", "KUCOIN", "GATEIO", "COINBASE", "بدون پیشوند"], group = gS,
      tooltip = "اگر خطای «نماد پشتیبانی نمی‌شود» گرفتی، صرافی را عوض کن یا AUTO بگذار")
 // نام ارزها بدون پیشوند صرافی وارد شود؛ مثال: BTCUSDT
-c1  = input.string("BTCUSDT", "ارز ۱", group = gS)
-c2  = input.string("ETHUSDT", "ارز ۲", group = gS)
-c3  = input.string("SOLUSDT", "ارز ۳", group = gS)
-c4  = input.string("BNBUSDT", "ارز ۴", group = gS)
-c5  = input.string("XRPUSDT", "ارز ۵", group = gS)
-c6  = input.string("DOGEUSDT", "ارز ۶", group = gS)
-c7  = input.string("ADAUSDT", "ارز ۷", group = gS)
-c8  = input.string("AVAXUSDT", "ارز ۸", group = gS)
-c9  = input.string("LINKUSDT", "ارز ۹", group = gS)
-c10 = input.string("TONUSDT", "ارز ۱۰", group = gS)
-c11 = input.string("TRXUSDT", "ارز ۱۱", group = gS)
-c12 = input.string("DOTUSDT", "ارز ۱۲", group = gS)
-c13 = input.string("NEARUSDT", "ارز ۱۳", group = gS)
-c14 = input.string("SUIUSDT", "ارز ۱۴", group = gS)
-c15 = input.string("LTCUSDT", "ارز ۱۵", group = gS)
+tk1  = input.string("BTCUSDT", "ارز ۱", group = gS)
+tk2  = input.string("ETHUSDT", "ارز ۲", group = gS)
+tk3  = input.string("SOLUSDT", "ارز ۳", group = gS)
+tk4  = input.string("BNBUSDT", "ارز ۴", group = gS)
+tk5  = input.string("XRPUSDT", "ارز ۵", group = gS)
+tk6  = input.string("DOGEUSDT", "ارز ۶", group = gS)
+tk7  = input.string("ADAUSDT", "ارز ۷", group = gS)
+tk8  = input.string("AVAXUSDT", "ارز ۸", group = gS)
+tk9  = input.string("LINKUSDT", "ارز ۹", group = gS)
+tk10 = input.string("TONUSDT", "ارز ۱۰", group = gS)
+tk11 = input.string("TRXUSDT", "ارز ۱۱", group = gS)
+tk12 = input.string("DOTUSDT", "ارز ۱۲", group = gS)
+tk13 = input.string("NEARUSDT", "ارز ۱۳", group = gS)
+tk14 = input.string("SUIUSDT", "ارز ۱۴", group = gS)
+tk15 = input.string("LTCUSDT", "ارز ۱۵", group = gS)
 
 pfx = switch exchSel
     "AUTO (همان صرافی چارت)" => syminfo.prefix + ":"
@@ -128,21 +128,21 @@ pfx = switch exchSel
     "COINBASE" => "COINBASE:"
     => ""
 sfx = exchSel == "BINANCE فیوچرز" or exchSel == "BYBIT فیوچرز" ? ".P" : ""
-sym1  = str.length(c1) == 0 ? syminfo.tickerid : pfx + str.upper(c1) + sfx
-sym2  = str.length(c2) == 0 ? syminfo.tickerid : pfx + str.upper(c2) + sfx
-sym3  = str.length(c3) == 0 ? syminfo.tickerid : pfx + str.upper(c3) + sfx
-sym4  = str.length(c4) == 0 ? syminfo.tickerid : pfx + str.upper(c4) + sfx
-sym5  = str.length(c5) == 0 ? syminfo.tickerid : pfx + str.upper(c5) + sfx
-sym6  = str.length(c6) == 0 ? syminfo.tickerid : pfx + str.upper(c6) + sfx
-sym7  = str.length(c7) == 0 ? syminfo.tickerid : pfx + str.upper(c7) + sfx
-sym8  = str.length(c8) == 0 ? syminfo.tickerid : pfx + str.upper(c8) + sfx
-sym9  = str.length(c9) == 0 ? syminfo.tickerid : pfx + str.upper(c9) + sfx
-sym10 = str.length(c10) == 0 ? syminfo.tickerid : pfx + str.upper(c10) + sfx
-sym11 = str.length(c11) == 0 ? syminfo.tickerid : pfx + str.upper(c11) + sfx
-sym12 = str.length(c12) == 0 ? syminfo.tickerid : pfx + str.upper(c12) + sfx
-sym13 = str.length(c13) == 0 ? syminfo.tickerid : pfx + str.upper(c13) + sfx
-sym14 = str.length(c14) == 0 ? syminfo.tickerid : pfx + str.upper(c14) + sfx
-sym15 = str.length(c15) == 0 ? syminfo.tickerid : pfx + str.upper(c15) + sfx
+sym1  = str.length(tk1) == 0 ? syminfo.tickerid : pfx + str.upper(tk1) + sfx
+sym2  = str.length(tk2) == 0 ? syminfo.tickerid : pfx + str.upper(tk2) + sfx
+sym3  = str.length(tk3) == 0 ? syminfo.tickerid : pfx + str.upper(tk3) + sfx
+sym4  = str.length(tk4) == 0 ? syminfo.tickerid : pfx + str.upper(tk4) + sfx
+sym5  = str.length(tk5) == 0 ? syminfo.tickerid : pfx + str.upper(tk5) + sfx
+sym6  = str.length(tk6) == 0 ? syminfo.tickerid : pfx + str.upper(tk6) + sfx
+sym7  = str.length(tk7) == 0 ? syminfo.tickerid : pfx + str.upper(tk7) + sfx
+sym8  = str.length(tk8) == 0 ? syminfo.tickerid : pfx + str.upper(tk8) + sfx
+sym9  = str.length(tk9) == 0 ? syminfo.tickerid : pfx + str.upper(tk9) + sfx
+sym10 = str.length(tk10) == 0 ? syminfo.tickerid : pfx + str.upper(tk10) + sfx
+sym11 = str.length(tk11) == 0 ? syminfo.tickerid : pfx + str.upper(tk11) + sfx
+sym12 = str.length(tk12) == 0 ? syminfo.tickerid : pfx + str.upper(tk12) + sfx
+sym13 = str.length(tk13) == 0 ? syminfo.tickerid : pfx + str.upper(tk13) + sfx
+sym14 = str.length(tk14) == 0 ? syminfo.tickerid : pfx + str.upper(tk14) + sfx
+sym15 = str.length(tk15) == 0 ? syminfo.tickerid : pfx + str.upper(tk15) + sfx
 
 var string gX = "🎨 نمایش اضافی (پیش‌فرض خاموش)"
 showEma   = input.bool(false, "خطوط EMA",                       group = gX)

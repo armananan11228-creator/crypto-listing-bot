@@ -37,21 +37,21 @@ exchSel   = input.string("BINANCE", "صرافی (برای همه ارزها)",
                 "OKX", "MEXC", "KUCOIN", "GATEIO", "COINBASE", "بدون پیشوند"], group = g2,
      tooltip = "اگر خطای «نماد پشتیبانی نمی‌شود» گرفتی، صرافی را عوض کن یا AUTO بگذار")
 // نام ارزها بدون پیشوند صرافی وارد شود؛ مثال: BTCUSDT  یا  ETHUSD
-c1  = input.string("BTCUSDT", "ارز ۱", group = g2)
-c2  = input.string("ETHUSDT", "ارز ۲", group = g2)
-c3  = input.string("SOLUSDT", "ارز ۳", group = g2)
-c4  = input.string("BNBUSDT", "ارز ۴", group = g2)
-c5  = input.string("XRPUSDT", "ارز ۵", group = g2)
-c6  = input.string("DOGEUSDT", "ارز ۶", group = g2)
-c7  = input.string("ADAUSDT", "ارز ۷", group = g2)
-c8  = input.string("AVAXUSDT", "ارز ۸", group = g2)
-c9  = input.string("LINKUSDT", "ارز ۹", group = g2)
-c10 = input.string("TONUSDT", "ارز ۱۰", group = g2)
-c11 = input.string("TRXUSDT", "ارز ۱۱", group = g2)
-c12 = input.string("DOTUSDT", "ارز ۱۲", group = g2)
-c13 = input.string("NEARUSDT", "ارز ۱۳", group = g2)
-c14 = input.string("SUIUSDT", "ارز ۱۴", group = g2)
-c15 = input.string("LTCUSDT", "ارز ۱۵", group = g2)
+tk1  = input.string("BTCUSDT", "ارز ۱", group = g2)
+tk2  = input.string("ETHUSDT", "ارز ۲", group = g2)
+tk3  = input.string("SOLUSDT", "ارز ۳", group = g2)
+tk4  = input.string("BNBUSDT", "ارز ۴", group = g2)
+tk5  = input.string("XRPUSDT", "ارز ۵", group = g2)
+tk6  = input.string("DOGEUSDT", "ارز ۶", group = g2)
+tk7  = input.string("ADAUSDT", "ارز ۷", group = g2)
+tk8  = input.string("AVAXUSDT", "ارز ۸", group = g2)
+tk9  = input.string("LINKUSDT", "ارز ۹", group = g2)
+tk10 = input.string("TONUSDT", "ارز ۱۰", group = g2)
+tk11 = input.string("TRXUSDT", "ارز ۱۱", group = g2)
+tk12 = input.string("DOTUSDT", "ارز ۱۲", group = g2)
+tk13 = input.string("NEARUSDT", "ارز ۱۳", group = g2)
+tk14 = input.string("SUIUSDT", "ارز ۱۴", group = g2)
+tk15 = input.string("LTCUSDT", "ارز ۱۵", group = g2)
 
 // ساخت نماد کامل از پیشوند صرافی + نام ارز
 pfx = switch exchSel
@@ -68,21 +68,21 @@ pfx = switch exchSel
     => ""
 sfx = exchSel == "BINANCE فیوچرز" or exchSel == "BYBIT فیوچرز" ? ".P" : ""
 // نماد کامل = پیشوند صرافی + نام ارز (اگر خالی باشد، همین ارز چارت)
-sym1  = str.length(c1) == 0 ? syminfo.tickerid : pfx + str.upper(c1) + sfx
-sym2  = str.length(c2) == 0 ? syminfo.tickerid : pfx + str.upper(c2) + sfx
-sym3  = str.length(c3) == 0 ? syminfo.tickerid : pfx + str.upper(c3) + sfx
-sym4  = str.length(c4) == 0 ? syminfo.tickerid : pfx + str.upper(c4) + sfx
-sym5  = str.length(c5) == 0 ? syminfo.tickerid : pfx + str.upper(c5) + sfx
-sym6  = str.length(c6) == 0 ? syminfo.tickerid : pfx + str.upper(c6) + sfx
-sym7  = str.length(c7) == 0 ? syminfo.tickerid : pfx + str.upper(c7) + sfx
-sym8  = str.length(c8) == 0 ? syminfo.tickerid : pfx + str.upper(c8) + sfx
-sym9  = str.length(c9) == 0 ? syminfo.tickerid : pfx + str.upper(c9) + sfx
-sym10 = str.length(c10) == 0 ? syminfo.tickerid : pfx + str.upper(c10) + sfx
-sym11 = str.length(c11) == 0 ? syminfo.tickerid : pfx + str.upper(c11) + sfx
-sym12 = str.length(c12) == 0 ? syminfo.tickerid : pfx + str.upper(c12) + sfx
-sym13 = str.length(c13) == 0 ? syminfo.tickerid : pfx + str.upper(c13) + sfx
-sym14 = str.length(c14) == 0 ? syminfo.tickerid : pfx + str.upper(c14) + sfx
-sym15 = str.length(c15) == 0 ? syminfo.tickerid : pfx + str.upper(c15) + sfx
+sym1  = str.length(tk1) == 0 ? syminfo.tickerid : pfx + str.upper(tk1) + sfx
+sym2  = str.length(tk2) == 0 ? syminfo.tickerid : pfx + str.upper(tk2) + sfx
+sym3  = str.length(tk3) == 0 ? syminfo.tickerid : pfx + str.upper(tk3) + sfx
+sym4  = str.length(tk4) == 0 ? syminfo.tickerid : pfx + str.upper(tk4) + sfx
+sym5  = str.length(tk5) == 0 ? syminfo.tickerid : pfx + str.upper(tk5) + sfx
+sym6  = str.length(tk6) == 0 ? syminfo.tickerid : pfx + str.upper(tk6) + sfx
+sym7  = str.length(tk7) == 0 ? syminfo.tickerid : pfx + str.upper(tk7) + sfx
+sym8  = str.length(tk8) == 0 ? syminfo.tickerid : pfx + str.upper(tk8) + sfx
+sym9  = str.length(tk9) == 0 ? syminfo.tickerid : pfx + str.upper(tk9) + sfx
+sym10 = str.length(tk10) == 0 ? syminfo.tickerid : pfx + str.upper(tk10) + sfx
+sym11 = str.length(tk11) == 0 ? syminfo.tickerid : pfx + str.upper(tk11) + sfx
+sym12 = str.length(tk12) == 0 ? syminfo.tickerid : pfx + str.upper(tk12) + sfx
+sym13 = str.length(tk13) == 0 ? syminfo.tickerid : pfx + str.upper(tk13) + sfx
+sym14 = str.length(tk14) == 0 ? syminfo.tickerid : pfx + str.upper(tk14) + sfx
+sym15 = str.length(tk15) == 0 ? syminfo.tickerid : pfx + str.upper(tk15) + sfx
 
 var string g3 = "🖥️ نمایش"
 panelMode = input.string("برچسب (موبایل)", "نوع نمایش", options = ["برچسب (موبایل)", "جدول", "هر دو"], group = g3)
