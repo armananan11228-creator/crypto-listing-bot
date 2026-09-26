@@ -82,6 +82,8 @@ tp2RR     = input.float(2.0, "TP2 (R)",    minval = 0.2, step = 0.1,    group = 
 
 var string gD = "🖥️ داشبورد"
 showDash  = input.bool(true, "نمایش داشبورد",                            group = gD)
+panelMode = input.string("برچسب روی چارت (موبایل)", "نوع نمایش پنل",
+     options = ["برچسب روی چارت (موبایل)", "جدول (دسکتاپ)", "هر دو"], group = gD)
 dashFull  = input.bool(false,"حالت کامل (نمایش تمام عوامل)",             group = gD)
 dashPos   = input.string("بالا-راست", "محل داشبورد", options = ["بالا-راست", "بالا-چپ", "پایین-چپ", "وسط-راست"], group = gD)
 sigText   = input.string("طراحی و توسعه توسط آرمان ناصری", "امضا", group = gD)
@@ -510,17 +512,17 @@ if longSig or shortSig
     label.delete(rrLb)
 
     if showLvls
-        enLn := line.new(bar_index, pEntry, bar_index + 20, pEntry, color = color.new(color.blue, 10), style = line.style_dashed, width = 1)
-        slLn := line.new(bar_index, pSL,    bar_index + 20, pSL,    color = color.new(#ef5350, 0), width = 2)
-        t1Ln := line.new(bar_index, pTP1,   bar_index + 20, pTP1,   color = color.new(#26a69a, 40), style = line.style_dashed)
-        t2Ln := line.new(bar_index, pTP2,   bar_index + 20, pTP2,   color = color.new(#26a69a, 0), width = 2)
+        enLn := line.new(bar_index, pEntry, bar_index + 8, pEntry, color = color.new(color.blue, 10), style = line.style_dashed, width = 1)
+        slLn := line.new(bar_index, pSL,    bar_index + 8, pSL,    color = color.new(#ef5350, 0), width = 2)
+        t1Ln := line.new(bar_index, pTP1,   bar_index + 8, pTP1,   color = color.new(#26a69a, 40), style = line.style_dashed)
+        t2Ln := line.new(bar_index, pTP2,   bar_index + 8, pTP2,   color = color.new(#26a69a, 0), width = 2)
     if showZones
-        rBox := box.new(bar_index, math.max(pEntry, pSL),  bar_index + 20, math.min(pEntry, pSL),
+        rBox := box.new(bar_index, math.max(pEntry, pSL),  bar_index + 8, math.min(pEntry, pSL),
              border_color = color.new(#ef5350, 70), bgcolor = color.new(#ef5350, 88))
-        wBox := box.new(bar_index, math.max(pEntry, pTP2), bar_index + 20, math.min(pEntry, pTP2),
+        wBox := box.new(bar_index, math.max(pEntry, pTP2), bar_index + 8, math.min(pEntry, pTP2),
              border_color = color.new(#26a69a, 70), bgcolor = color.new(#26a69a, 88))
     if showRR
-        rrLb := label.new(bar_index + 20, pTP2, "TP2 · R:R 1:" + str.tostring(tp2RR, "#.#"),
+        rrLb := label.new(bar_index + 8, pTP2, "TP2 · R:R 1:" + str.tostring(tp2RR, "#.#"),
              style = label.style_label_left, color = color.new(#26a69a, 15), textcolor = color.white, size = size.tiny)
     if showSig
         label.new(bar_index, longSig ? low - atr * 0.6 : high + atr * 0.6,
@@ -626,11 +628,31 @@ f_pos(string p) =>
         => position.middle_right
 
 scoreBar(float s) =>
-    int filled = int(math.max(1, math.min(5, math.round(math.abs(s) * 5))))
-    str.repeat(s >= 0 ? "▰" : "▱", filled) + str.repeat("·", 5 - filled)
+    float v = nz(s, 0.0)
+    int filled = int(math.max(1, math.min(5, math.round(math.abs(v) * 5))))
+    str.repeat(v >= 0 ? "▰" : "▱", filled) + (filled < 5 ? str.repeat("·", 5 - filled) : "")
 
+useTable = panelMode == "جدول (دسکتاپ)" or panelMode == "هر دو"
+useLabel = panelMode == "برچسب روی چارت (موبایل)" or panelMode == "هر دو"
+
+// مقادیر مشترک پنل
+bias    = score > sigThreshold ? "خرید ▲" : score < -sigThreshold ? "فروش ▼" : "خنثی ■"
+biasCol = score > sigThreshold ? #26a69a : score < -sigThreshold ? #ef5350 : color.gray
+planTxt = posDir == 0 or na(pEntry) ? "بدون معامله فعال" :
+     (posDir == 1 ? "LONG " : "SHORT ") + pGrade + " · ورود " + str.tostring(pEntry, format.mintick) +
+     " · SL " + str.tostring(pSL, format.mintick) + " · TP " + str.tostring(pTP2, format.mintick)
+statsTxt = not showStats ? "" :
+     "📊 " + str.tostring(wins) + "W / " + str.tostring(losses) + "L · WR " + str.tostring(winRate, "#") + "% · " +
+     (sumR >= 0 ? "+" : "") + str.tostring(sumR, "#.#") + "R" +
+     (posDir != 0 ? "  |  جاری: " + (curR >= 0 ? "+" : "") + str.tostring(curR, "#.##") + "R" : "")
+
+// ═════════════════════ جدول داشبورد (دسکتاپ) ═════════════════════════════
 var table dash = table.new(f_pos(dashPos), 3, dashFull ? 19 : 9, border_width = 1,
      frame_width = 1, frame_color = color.new(color.gray, 60), bgcolor = color.new(#131722, 10))
+
+fillRow(table t, int row, int cols) =>
+    for c = 0 to cols - 1
+        table.cell(t, c, row, "")
 
 rowFactor(int r, string name, float s, int idx) =>
     col = s > 0.1 ? #26a69a : s < -0.1 ? #ef5350 : color.gray
@@ -639,10 +661,8 @@ rowFactor(int r, string name, float s, int idx) =>
     table.cell(dash, 2, r, adaptive ? "×" + str.tostring(getMult(idx), "#.0#") : str.tostring(s, "#.00"),
          text_size = size.tiny, text_color = color.new(color.silver, 20))
 
-if showDash and barstate.islast
-    bias    = score > sigThreshold ? "خرید ▲" : score < -sigThreshold ? "فروش ▼" : "خنثی ■"
-    biasCol = score > sigThreshold ? #26a69a : score < -sigThreshold ? #ef5350 : color.gray
-
+if showDash and useTable and barstate.islast
+    fillRow(dash, 0, 3)
     table.cell(dash, 0, 0, "🧠 " + shortSym(syminfo.ticker) + " · " + timeframe.period,
          text_size = size.small, text_color = color.white, bgcolor = color.new(#2962ff, 20))
     table.merge_cells(dash, 0, 0, 2, 0)
@@ -669,10 +689,8 @@ if showDash and barstate.islast
     table.cell(dash, 1, 5, scoreBar(sLiq), text_size = size.tiny, text_color = sLiq > 0 ? #ef5350 : #26a69a)
     table.cell(dash, 2, 5, sLiq > 0.15 ? "به بالا" : sLiq < -0.15 ? "به پایین" : "متعادل", text_size = size.tiny, text_color = color.silver)
 
-    plan = posDir == 0 or na(pEntry) ? "بدون معامله فعال" :
-         (posDir == 1 ? "LONG " : "SHORT ") + pGrade + " · ورود " + str.tostring(pEntry, format.mintick) +
-         " · SL " + str.tostring(pSL, format.mintick) + " · TP " + str.tostring(pTP2, format.mintick)
-    table.cell(dash, 0, 6, plan, text_size = size.tiny, text_color = color.white,
+    fillRow(dash, 6, 3)
+    table.cell(dash, 0, 6, planTxt, text_size = size.tiny, text_color = color.white,
          bgcolor = color.new(posDir == 1 ? #26a69a : posDir == -1 ? #ef5350 : color.gray, 60))
     table.merge_cells(dash, 0, 6, 2, 6)
 
@@ -689,34 +707,65 @@ if showDash and barstate.islast
         rowFactor(13, "VWAP",           sVWAP,  6)
         rowFactor(14, "HTF " + htfTF,   sHTF,   7)
         rowFactor(15, "مغناطیس نقدینگی", sLiq,   8)
-        table.cell(dash, 0, 16, "ATR " + str.tostring(atrPct, "#.##") + "% · حجم ×" + str.tostring(volRatio, "#.0") + " · کشیدگی " + str.tostring(ext, "#.#") + "×",
+        fillRow(dash, 16, 3)
+        table.cell(dash, 0, 16, "ATR " + str.tostring(atrPct, "#.##") + "% · حجم ×" + str.tostring(volRatio, "#.0"),
              text_size = size.tiny, text_color = color.new(color.silver, 20))
         table.merge_cells(dash, 0, 16, 2, 16)
 
-    stats = not showStats ? "—" :
-         "📊 " + str.tostring(wins) + "W / " + str.tostring(losses) + "L · WR " + str.tostring(winRate, "#") + "% · " +
-         (sumR >= 0 ? "+" : "") + str.tostring(sumR, "#.#") + "R" +
-         (posDir != 0 ? "  |  جاری: " + (curR >= 0 ? "+" : "") + str.tostring(curR, "#.##") + "R" : "")
-    table.cell(dash, 0, rowStats, stats, text_size = size.tiny, text_color = color.white,
+    fillRow(dash, rowStats, 3)
+    table.cell(dash, 0, rowStats, statsTxt == "" ? "—" : statsTxt, text_size = size.tiny, text_color = color.white,
          bgcolor = color.new(sumR > 0 ? #26a69a : sumR < 0 ? #ef5350 : color.gray, 70))
     table.merge_cells(dash, 0, rowStats, 2, rowStats)
 
+    fillRow(dash, rowSign, 3)
     table.cell(dash, 0, rowSign, "✍️ " + sigText, text_size = size.tiny,
          text_color = color.new(color.white, 10), bgcolor = color.new(#2962ff, 45))
     table.merge_cells(dash, 0, rowSign, 2, rowSign)
 
-// ───────────────────────── SCANNER TABLE (15) ─────────────────────────────
-var table scan = table.new(f_pos(scanPos), 5, 17, border_width = 1,
-     frame_width = 1, frame_color = color.new(color.gray, 60), bgcolor = color.new(#131722, 10))
-
-if showScan and barstate.islast
+// ═══════════════════ اسکنر: آماده‌سازی داده‌ها ════════════════════════════
+scanTxt() =>
     array<string> names = array.from(shortSym(sym1),  shortSym(sym2),  shortSym(sym3),  shortSym(sym4),  shortSym(sym5),
                                      shortSym(sym6),  shortSym(sym7),  shortSym(sym8),  shortSym(sym9),  shortSym(sym10),
                                      shortSym(sym11), shortSym(sym12), shortSym(sym13), shortSym(sym14), shortSym(sym15))
-    array<float> scs = array.from(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15)
-    array<float> cfs = array.from(k1, k2, k3, k4, k5, k6, k7, k8, k9, k10, k11, k12, k13, k14, k15)
-    array<float> frs = array.from(r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15)
+    array<float> scs = array.from(nz(c1), nz(c2), nz(c3), nz(c4), nz(c5), nz(c6), nz(c7), nz(c8),
+                                  nz(c9), nz(c10), nz(c11), nz(c12), nz(c13), nz(c14), nz(c15))
+    array<float> cfs = array.from(nz(k1), nz(k2), nz(k3), nz(k4), nz(k5), nz(k6), nz(k7), nz(k8),
+                                  nz(k9), nz(k10), nz(k11), nz(k12), nz(k13), nz(k14), nz(k15))
+    array<float> frs = array.from(nz(r1), nz(r2), nz(r3), nz(r4), nz(r5), nz(r6), nz(r7), nz(r8),
+                                  nz(r9), nz(r10), nz(r11), nz(r12), nz(r13), nz(r14), nz(r15))
+    string out = ""
+    array<int> ordIdx = array.sort_indices(cfs, order.descending)
+    int shown = 0
+    for j = 0 to array.size(ordIdx) - 1
+        if shown < 10
+            int   k  = array.get(ordIdx, j)
+            float sc = array.get(scs, k)
+            float cf = array.get(cfs, k)
+            float fr = array.get(frs, k)
+            bool  ok = cf >= minConf and math.abs(sc) >= sigThreshold
+            if (not scanReady or ok) and cf > 0
+                string st = fr != 0 and ok ? "🔥" : ok ? "✅" : "·"
+                out := out + st + " " + array.get(names, k) + "  " + (sc > 0 ? "▲" : "▼") + "  " +
+                     str.tostring(cf, "#") + "%\n"
+                shown += 1
+    out
 
+// ═════════════════════ جدول اسکنر (دسکتاپ) ═══════════════════════════════
+var table scan = table.new(f_pos(scanPos), 5, 17, border_width = 1,
+     frame_width = 1, frame_color = color.new(color.gray, 60), bgcolor = color.new(#131722, 10))
+
+if showScan and useTable and barstate.islast
+    array<string> names = array.from(shortSym(sym1),  shortSym(sym2),  shortSym(sym3),  shortSym(sym4),  shortSym(sym5),
+                                     shortSym(sym6),  shortSym(sym7),  shortSym(sym8),  shortSym(sym9),  shortSym(sym10),
+                                     shortSym(sym11), shortSym(sym12), shortSym(sym13), shortSym(sym14), shortSym(sym15))
+    array<float> scs = array.from(nz(c1), nz(c2), nz(c3), nz(c4), nz(c5), nz(c6), nz(c7), nz(c8),
+                                  nz(c9), nz(c10), nz(c11), nz(c12), nz(c13), nz(c14), nz(c15))
+    array<float> cfs = array.from(nz(k1), nz(k2), nz(k3), nz(k4), nz(k5), nz(k6), nz(k7), nz(k8),
+                                  nz(k9), nz(k10), nz(k11), nz(k12), nz(k13), nz(k14), nz(k15))
+    array<float> frs = array.from(nz(r1), nz(r2), nz(r3), nz(r4), nz(r5), nz(r6), nz(r7), nz(r8),
+                                  nz(r9), nz(r10), nz(r11), nz(r12), nz(r13), nz(r14), nz(r15))
+
+    fillRow(scan, 0, 5)
     table.cell(scan, 0, 0, "🔎 اسکنر ۱۵ ارز · " + scTF, text_size = size.small, text_color = color.white, bgcolor = color.new(#2962ff, 20))
     table.merge_cells(scan, 0, 0, 4, 0)
     table.cell(scan, 0, 1, "ارز",     text_size = size.tiny, text_color = color.new(color.white, 30))
@@ -734,10 +783,10 @@ if showScan and barstate.islast
             float cf = array.get(cfs, k)
             float fr = array.get(frs, k)
             bool  ok = cf >= minConf and math.abs(sc) >= sigThreshold
-            if not scanReady or ok
+            if (not scanReady or ok) and cf > 0
                 string dirTxt = sc > 0 ? "▲ خرید" : sc < 0 ? "▼ فروش" : "■"
                 color  dirCol = sc > 0.05 ? #26a69a : sc < -0.05 ? #ef5350 : color.gray
-                string stat   = fr != 0 and ok ? "🔥 ورود تازه" : ok ? "✅ آماده" : cf >= minConf * 0.7 ? "… در حال شکل‌گیری" : "—"
+                string stat   = fr != 0 and ok ? "🔥 ورود تازه" : ok ? "✅ آماده" : cf >= minConf * 0.7 ? "…" : "—"
                 table.cell(scan, 0, row, array.get(names, k), text_size = size.tiny, text_color = color.white)
                 table.cell(scan, 1, row, dirTxt, text_size = size.tiny, text_color = color.white, bgcolor = color.new(dirCol, 55))
                 table.cell(scan, 2, row, scoreBar(sc), text_size = size.tiny, text_color = dirCol)
@@ -746,6 +795,37 @@ if showScan and barstate.islast
                 table.cell(scan, 4, row, stat, text_size = size.tiny,
                      text_color = fr != 0 and ok ? color.yellow : ok ? #26a69a : color.new(color.silver, 30))
                 row += 1
+
+// ═══════════ پنل برچسبی روی چارت (سازگار با موبایل) ══════════════════════
+var label panelLb = na
+var label scanLb  = na
+hiRef60 = ta.highest(high, 60)
+loRef60 = ta.lowest(low, 60)
+
+if barstate.islast and useLabel
+    float hiRef = hiRef60
+    float loRef = loRef60
+    if showDash
+        string txt = "🧠 " + shortSym(syminfo.ticker) + " · " + timeframe.period + "\n" +
+             "جهت: " + bias + "   (" + str.tostring(score, "#.00") + ")\n" +
+             "اطمینان: " + str.tostring(conf, "#") + "%   کیفیت: " + gradeS + "\n" +
+             "رژیم: " + regime + "   ADX " + str.tostring(adxV, "#") + "\n" +
+             "نقدینگی ↑ " + (na(nearAbove) ? "—" : str.tostring(nearAbove, format.mintick)) +
+             "   ↓ " + (na(nearBelow) ? "—" : str.tostring(nearBelow, format.mintick)) + "\n" +
+             planTxt + "\n" +
+             (statsTxt == "" ? "" : statsTxt + "\n") +
+             "✍️ " + sigText
+        label.delete(panelLb)
+        panelLb := label.new(bar_index, hiRef + atr * 2, txt, style = label.style_label_left,
+             color = color.new(#131722, 15), textcolor = color.white, size = size.small,
+             textalign = text.align_left)
+    if showScan
+        string st = scanTxt()
+        label.delete(scanLb)
+        scanLb := label.new(bar_index, loRef - atr * 2,
+             "🔎 اسکنر " + scTF + "\n" + (st == "" ? "فرصتی نیست" : st) + "✍️ " + sigText,
+             style = label.style_label_left, color = color.new(#131722, 15),
+             textcolor = color.white, size = size.small, textalign = text.align_left)
 
 // ───────────────────────────── ALERTS ─────────────────────────────────────
 alertcondition(longSig,   "🟢 سیگنال خرید",  "AI-LiqScan BUY")
