@@ -94,21 +94,55 @@ scanPos   = input.string("پایین-راست", "محل اسکنر", options = [
 scanTF    = input.timeframe("", "تایم‌فریم اسکن (خالی = چارت)",               group = gS)
 scanReady = input.bool(false,"فقط ارزهای آماده",                              group = gS)
 scanBars  = input.int(600, "عمق محاسبه اسکنر (کندل)", minval = 200, maxval = 5000, step = 100, group = gS)
-sym1  = input.symbol("BINANCE:BTCUSDT",  "ارز ۱",  group = gS)
-sym2  = input.symbol("BINANCE:ETHUSDT",  "ارز ۲",  group = gS)
-sym3  = input.symbol("BINANCE:SOLUSDT",  "ارز ۳",  group = gS)
-sym4  = input.symbol("BINANCE:BNBUSDT",  "ارز ۴",  group = gS)
-sym5  = input.symbol("BINANCE:XRPUSDT",  "ارز ۵",  group = gS)
-sym6  = input.symbol("BINANCE:DOGEUSDT", "ارز ۶",  group = gS)
-sym7  = input.symbol("BINANCE:ADAUSDT",  "ارز ۷",  group = gS)
-sym8  = input.symbol("BINANCE:AVAXUSDT", "ارز ۸",  group = gS)
-sym9  = input.symbol("BINANCE:LINKUSDT", "ارز ۹",  group = gS)
-sym10 = input.symbol("BINANCE:TONUSDT",  "ارز ۱۰", group = gS)
-sym11 = input.symbol("BINANCE:TRXUSDT",  "ارز ۱۱", group = gS)
-sym12 = input.symbol("BINANCE:DOTUSDT",  "ارز ۱۲", group = gS)
-sym13 = input.symbol("BINANCE:NEARUSDT", "ارز ۱۳", group = gS)
-sym14 = input.symbol("BINANCE:SUIUSDT",  "ارز ۱۴", group = gS)
-sym15 = input.symbol("BINANCE:LTCUSDT",  "ارز ۱۵", group = gS)
+exchSel   = input.string("BINANCE", "صرافی (برای همه ارزها)",
+     options = ["AUTO (همان صرافی چارت)", "BINANCE", "BINANCE فیوچرز", "BYBIT", "BYBIT فیوچرز",
+                "OKX", "MEXC", "KUCOIN", "GATEIO", "COINBASE", "بدون پیشوند"], group = gS,
+     tooltip = "اگر خطای «نماد پشتیبانی نمی‌شود» گرفتی، صرافی را عوض کن یا AUTO بگذار")
+// نام ارزها بدون پیشوند صرافی وارد شود؛ مثال: BTCUSDT
+c1  = input.string("BTCUSDT", "ارز ۱", group = gS)
+c2  = input.string("ETHUSDT", "ارز ۲", group = gS)
+c3  = input.string("SOLUSDT", "ارز ۳", group = gS)
+c4  = input.string("BNBUSDT", "ارز ۴", group = gS)
+c5  = input.string("XRPUSDT", "ارز ۵", group = gS)
+c6  = input.string("DOGEUSDT", "ارز ۶", group = gS)
+c7  = input.string("ADAUSDT", "ارز ۷", group = gS)
+c8  = input.string("AVAXUSDT", "ارز ۸", group = gS)
+c9  = input.string("LINKUSDT", "ارز ۹", group = gS)
+c10 = input.string("TONUSDT", "ارز ۱۰", group = gS)
+c11 = input.string("TRXUSDT", "ارز ۱۱", group = gS)
+c12 = input.string("DOTUSDT", "ارز ۱۲", group = gS)
+c13 = input.string("NEARUSDT", "ارز ۱۳", group = gS)
+c14 = input.string("SUIUSDT", "ارز ۱۴", group = gS)
+c15 = input.string("LTCUSDT", "ارز ۱۵", group = gS)
+
+pfx = switch exchSel
+    "AUTO (همان صرافی چارت)" => syminfo.prefix + ":"
+    "BINANCE" => "BINANCE:"
+    "BINANCE فیوچرز" => "BINANCE:"
+    "BYBIT" => "BYBIT:"
+    "BYBIT فیوچرز" => "BYBIT:"
+    "OKX" => "OKX:"
+    "MEXC" => "MEXC:"
+    "KUCOIN" => "KUCOIN:"
+    "GATEIO" => "GATEIO:"
+    "COINBASE" => "COINBASE:"
+    => ""
+sfx = exchSel == "BINANCE فیوچرز" or exchSel == "BYBIT فیوچرز" ? ".P" : ""
+sym1  = str.length(c1) == 0 ? syminfo.tickerid : pfx + str.upper(c1) + sfx
+sym2  = str.length(c2) == 0 ? syminfo.tickerid : pfx + str.upper(c2) + sfx
+sym3  = str.length(c3) == 0 ? syminfo.tickerid : pfx + str.upper(c3) + sfx
+sym4  = str.length(c4) == 0 ? syminfo.tickerid : pfx + str.upper(c4) + sfx
+sym5  = str.length(c5) == 0 ? syminfo.tickerid : pfx + str.upper(c5) + sfx
+sym6  = str.length(c6) == 0 ? syminfo.tickerid : pfx + str.upper(c6) + sfx
+sym7  = str.length(c7) == 0 ? syminfo.tickerid : pfx + str.upper(c7) + sfx
+sym8  = str.length(c8) == 0 ? syminfo.tickerid : pfx + str.upper(c8) + sfx
+sym9  = str.length(c9) == 0 ? syminfo.tickerid : pfx + str.upper(c9) + sfx
+sym10 = str.length(c10) == 0 ? syminfo.tickerid : pfx + str.upper(c10) + sfx
+sym11 = str.length(c11) == 0 ? syminfo.tickerid : pfx + str.upper(c11) + sfx
+sym12 = str.length(c12) == 0 ? syminfo.tickerid : pfx + str.upper(c12) + sfx
+sym13 = str.length(c13) == 0 ? syminfo.tickerid : pfx + str.upper(c13) + sfx
+sym14 = str.length(c14) == 0 ? syminfo.tickerid : pfx + str.upper(c14) + sfx
+sym15 = str.length(c15) == 0 ? syminfo.tickerid : pfx + str.upper(c15) + sfx
 
 var string gX = "🎨 نمایش اضافی (پیش‌فرض خاموش)"
 showEma   = input.bool(false, "خطوط EMA",                       group = gX)
@@ -121,10 +155,8 @@ vpBins    = input.int(40,  "تعداد ردیف",       minval = 10, maxval = 12
 // ───────────────────────────────── HELPERS ────────────────────────────────
 clamp(float x, float lo, float hi) => math.max(lo, math.min(hi, x))
 shortSym(string s) =>
-    string t = str.replace_all(s, "BINANCE:", "")
-    t := str.replace_all(t, "BYBIT:", "")
-    t := str.replace_all(t, "OKX:", "")
-    t := str.replace_all(t, "COINBASE:", "")
+    int    p = str.pos(s, ":")
+    string t = na(p) ? s : str.substring(s, p + 1)
     t := str.replace_all(t, "USDT.P", "")
     t := str.replace_all(t, "USDT", "")
     t := str.replace_all(t, "PERP", "")
