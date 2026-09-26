@@ -40,7 +40,7 @@ onlyBuy   = input.bool(false, "فقط ارزهای قابل خرید را نشا
 scanBars  = input.int(900, "عمق محاسبه (کندل)", minval = 300, maxval = 5000, step = 100, group = g3)
 exchSel   = input.string("BINANCE", "صرافی (برای همه ارزها)",
      options = ["AUTO (همان صرافی چارت)", "BINANCE", "BINANCE فیوچرز", "BYBIT", "BYBIT فیوچرز",
-                "OKX", "MEXC", "KUCOIN", "GATEIO", "COINBASE", "بدون پیشوند"], group = g3,
+                 "OKX", "MEXC", "KUCOIN", "GATEIO", "COINBASE", "بدون پیشوند"], group = g3,
      tooltip = "اگر خطای «نماد پشتیبانی نمی‌شود» گرفتی، صرافی را عوض کن یا AUTO بگذار")
 // نام ارزها بدون پیشوند صرافی وارد شود؛ مثال: BTCUSDT
 tk1  = input.string("BTCUSDT",  "ارز ۱",  group = g3)
@@ -184,7 +184,7 @@ f_spot() =>
 
     // ── امتیاز نهایی وزنی (۰ تا ۱۰۰) ──
     float raw = trendS * 2.0 + momoS * 1.5 + rsiS * 1.2 + volS * 1.5 +
-                pullS  * 1.2 + adxS  * 1.0 + strS * 0.8 + volaS * 0.8
+                 pullS  * 1.2 + adxS  * 1.0 + strS * 0.8 + volaS * 0.8
     float sc  = clamp(raw * 10.0, 0.0, 100.0)
 
     // ── برنامه خروج ──

@@ -96,7 +96,7 @@ scanReady = input.bool(false,"فقط ارزهای آماده",                  
 scanBars  = input.int(600, "عمق محاسبه اسکنر (کندل)", minval = 200, maxval = 5000, step = 100, group = gS)
 exchSel   = input.string("BINANCE", "صرافی (برای همه ارزها)",
      options = ["AUTO (همان صرافی چارت)", "BINANCE", "BINANCE فیوچرز", "BYBIT", "BYBIT فیوچرز",
-                "OKX", "MEXC", "KUCOIN", "GATEIO", "COINBASE", "بدون پیشوند"], group = gS,
+                 "OKX", "MEXC", "KUCOIN", "GATEIO", "COINBASE", "بدون پیشوند"], group = gS,
      tooltip = "اگر خطای «نماد پشتیبانی نمی‌شود» گرفتی، صرافی را عوض کن یا AUTO بگذار")
 // نام ارزها بدون پیشوند صرافی وارد شود؛ مثال: BTCUSDT
 tk1  = input.string("BTCUSDT", "ارز ۱", group = gS)
