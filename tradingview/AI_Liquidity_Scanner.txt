@@ -1,16 +1,19 @@
 //@version=6
 // ═══════════════════════════════════════════════════════════════════════════
-//  AI Liquidity Scanner  v2  —  Clean Mode + Multi-Symbol Scanner
+//  AI Liquidity Scanner  v3  —  Advanced Signals + 15-Symbol Scanner
 //  Crypto scalping (1m – 15m) | overlay
 //
-//  نسخه ۲:
-//    • چارت تمیز: فقط نقدینگی + سیگنال خرید/فروش + ریسک به ریوارد
-//    • اسکنر چند ارزی: ۸ ارز برتر را هم‌زمان بررسی می‌کند و می‌گوید
-//      همین الان روی کدام می‌شود پوزیشن باز کرد.
-//    • موتور امتیازدهی خودیادگیر (adaptive ensemble) مثل قبل
+//  ✍️  طراحی و توسعه توسط آرمان ناصری
+//
+//  v3:
+//    • سیگنال‌دهی پیشرفته: دو موتور (روندی + بازگشتی روی شکار نقدینگی)
+//      با درجه‌بندی کیفیت A+ / A / B و فیلترهای چندلایه
+//    • مدیریت زنده معامله: TP1 / TP2 / SL، انتقال به نقطه سربه‌سر، سود لحظه‌ای (R)
+//    • آمار عملکرد: تعداد برد/باخت، وین‌ریت، مجموع R
+//    • اسکنر ۱۵ ارزی
 // ═══════════════════════════════════════════════════════════════════════════
 
-indicator("AI Liquidity Scanner [Arena]", shorttitle="AI-LiqScan", overlay = true,
+indicator("AI Liquidity Scanner [Arman Naseri]", shorttitle="AI-LiqScan v3", overlay = true,
      max_lines_count = 500, max_labels_count = 500, max_boxes_count = 500)
 
 // ───────────────────────────────── INPUTS ─────────────────────────────────
@@ -22,6 +25,19 @@ adaptive     = input.bool(true,"وزن‌دهی خودیادگیر",            
 learnRate    = input.float(0.05,"نرخ یادگیری", minval = 0.005, maxval = 0.5, step = 0.005,       group = gE)
 evalBars     = input.int(5,    "افق ارزیابی عملکرد (کندل)", minval = 1, maxval = 50,             group = gE)
 htfTF        = input.timeframe("15", "تایم‌فریم بالاتر (بایاس)",                                  group = gE)
+
+var string gSg = "🎯 سیگنال‌دهی پیشرفته"
+sigMode      = input.string("هوشمند (روندی + بازگشتی)", "حالت سیگنال",
+     options = ["هوشمند (روندی + بازگشتی)", "فقط روندی", "فقط بازگشتی"], group = gSg)
+minGrade     = input.string("B", "حداقل کیفیت سیگنال", options = ["A+", "A", "B"], group = gSg)
+useHTF       = input.bool(true,  "فیلتر هم‌جهتی با تایم‌فریم بالاتر",           group = gSg)
+useVolFilter = input.bool(true,  "فیلتر حجم",                                 group = gSg)
+minVolRatio  = input.float(1.0,  "حداقل نسبت حجم", minval = 0.1, step = 0.1,  group = gSg)
+useAdx       = input.bool(true,  "فیلتر رژیم (ADX) برای سیگنال روندی",         group = gSg)
+adxMin       = input.int(18,     "حداقل ADX", minval = 5, maxval = 50,        group = gSg)
+maxExt       = input.float(3.0,  "حداکثر کشیدگی از EMA (× ATR)", minval = 0.5, step = 0.5, group = gSg)
+useBE        = input.bool(true,  "انتقال SL به نقطه ورود بعد از TP1",          group = gSg)
+showStats    = input.bool(true,  "آمار عملکرد در داشبورد",                     group = gSg)
 
 var string gW = "⚖️ وزن عوامل"
 wTrend = input.float(1.2, "روند EMA",        minval = 0, maxval = 3, step = 0.1, group = gW)
@@ -44,7 +60,7 @@ stAtr      = input.int(10, "SuperTrend ATR",       minval = 2,               gro
 
 var string gL = "💧 نقدینگی (روی چارت)"
 showLiq    = input.bool(true, "نمایش سطوح نقدینگی",                            group = gL)
-hideSwept  = input.bool(true, "حذف سطح بعد از مصرف شدن (چارت تمیزتر)",         group = gL)
+hideSwept  = input.bool(true, "حذف سطح بعد از مصرف شدن",                       group = gL)
 onlyStrong = input.bool(false,"فقط نقدینگی سنگین (EQH/EQL)",                   group = gL)
 pivLen     = input.int(10,  "حساسیت پیوت", minval = 2, maxval = 50,            group = gL)
 maxPools   = input.int(6,   "حداکثر سطوح هر سمت", minval = 1, maxval = 40,     group = gL)
@@ -53,10 +69,13 @@ showSwept  = input.bool(false,"برچسب Sweep",                               
 colBSL     = input.color(color.new(#ef5350, 25), "نقدینگی بالا (BSL)",         group = gL)
 colSSL     = input.color(color.new(#26a69a, 25), "نقدینگی پایین (SSL)",        group = gL)
 
-var string gT = "🎯 معامله و ریسک"
-showSig   = input.bool(true,  "برچسب سیگنال خرید/فروش",                 group = gT)
+var string gT = "📐 نمایش معامله روی چارت"
+showSig   = input.bool(true,  "برچسب بزرگ سیگنال",                      group = gT)
+showArrow = input.bool(true,  "فلش خرید/فروش",                          group = gT)
 showLvls  = input.bool(true,  "خطوط Entry / SL / TP",                   group = gT)
+showZones = input.bool(true,  "ناحیه ریسک و ریوارد (باکس رنگی)",         group = gT)
 showRR    = input.bool(true,  "برچسب ریسک به ریوارد",                    group = gT)
+showExit  = input.bool(true,  "برچسب TP/SL خورده",                       group = gT)
 slAtrMult = input.float(1.2, "SL (× ATR)", minval = 0.2, step = 0.1,    group = gT)
 tp1RR     = input.float(1.0, "TP1 (R)",    minval = 0.2, step = 0.1,    group = gT)
 tp2RR     = input.float(2.0, "TP2 (R)",    minval = 0.2, step = 0.1,    group = gT)
@@ -65,20 +84,29 @@ var string gD = "🖥️ داشبورد"
 showDash  = input.bool(true, "نمایش داشبورد",                            group = gD)
 dashFull  = input.bool(false,"حالت کامل (نمایش تمام عوامل)",             group = gD)
 dashPos   = input.string("بالا-راست", "محل داشبورد", options = ["بالا-راست", "بالا-چپ", "پایین-چپ", "وسط-راست"], group = gD)
+sigText   = input.string("طراحی و توسعه توسط آرمان ناصری", "امضا", group = gD)
 
-var string gS = "🔎 اسکنر چند ارزی"
+var string gS = "🔎 اسکنر ۱۵ ارزی"
 showScan  = input.bool(true, "نمایش اسکنر",                                  group = gS)
 scanPos   = input.string("پایین-راست", "محل اسکنر", options = ["پایین-راست", "پایین-چپ", "وسط-راست", "بالا-چپ"], group = gS)
-scanTF    = input.timeframe("", "تایم‌فریم اسکن (خالی = تایم‌فریم چارت)",       group = gS)
-scanReady = input.bool(false,"فقط ارزهای آماده را نشان بده",                   group = gS)
-sym1 = input.symbol("BINANCE:BTCUSDT",  "ارز ۱", group = gS)
-sym2 = input.symbol("BINANCE:ETHUSDT",  "ارز ۲", group = gS)
-sym3 = input.symbol("BINANCE:SOLUSDT",  "ارز ۳", group = gS)
-sym4 = input.symbol("BINANCE:BNBUSDT",  "ارز ۴", group = gS)
-sym5 = input.symbol("BINANCE:XRPUSDT",  "ارز ۵", group = gS)
-sym6 = input.symbol("BINANCE:DOGEUSDT", "ارز ۶", group = gS)
-sym7 = input.symbol("BINANCE:ADAUSDT",  "ارز ۷", group = gS)
-sym8 = input.symbol("BINANCE:AVAXUSDT", "ارز ۸", group = gS)
+scanTF    = input.timeframe("", "تایم‌فریم اسکن (خالی = چارت)",               group = gS)
+scanReady = input.bool(false,"فقط ارزهای آماده",                              group = gS)
+scanBars  = input.int(600, "عمق محاسبه اسکنر (کندل)", minval = 200, maxval = 5000, step = 100, group = gS)
+sym1  = input.symbol("BINANCE:BTCUSDT",  "ارز ۱",  group = gS)
+sym2  = input.symbol("BINANCE:ETHUSDT",  "ارز ۲",  group = gS)
+sym3  = input.symbol("BINANCE:SOLUSDT",  "ارز ۳",  group = gS)
+sym4  = input.symbol("BINANCE:BNBUSDT",  "ارز ۴",  group = gS)
+sym5  = input.symbol("BINANCE:XRPUSDT",  "ارز ۵",  group = gS)
+sym6  = input.symbol("BINANCE:DOGEUSDT", "ارز ۶",  group = gS)
+sym7  = input.symbol("BINANCE:ADAUSDT",  "ارز ۷",  group = gS)
+sym8  = input.symbol("BINANCE:AVAXUSDT", "ارز ۸",  group = gS)
+sym9  = input.symbol("BINANCE:LINKUSDT", "ارز ۹",  group = gS)
+sym10 = input.symbol("BINANCE:TONUSDT",  "ارز ۱۰", group = gS)
+sym11 = input.symbol("BINANCE:TRXUSDT",  "ارز ۱۱", group = gS)
+sym12 = input.symbol("BINANCE:DOTUSDT",  "ارز ۱۲", group = gS)
+sym13 = input.symbol("BINANCE:NEARUSDT", "ارز ۱۳", group = gS)
+sym14 = input.symbol("BINANCE:SUIUSDT",  "ارز ۱۴", group = gS)
+sym15 = input.symbol("BINANCE:LTCUSDT",  "ارز ۱۵", group = gS)
 
 var string gX = "🎨 نمایش اضافی (پیش‌فرض خاموش)"
 showEma   = input.bool(false, "خطوط EMA",                       group = gX)
@@ -99,9 +127,9 @@ shortSym(string s) =>
     t := str.replace_all(t, "USDT", "")
     t := str.replace_all(t, "PERP", "")
     t
+gradeRank(string g) => g == "A+" ? 3 : g == "A" ? 2 : 1
 
 // ══════════════════ SHARED SCORING ENGINE (per symbol) ════════════════════
-// خروجی: [امتیاز، اطمینان، ADX، سیگنال تازه (1 خرید / 1- فروش / 0)]
 f_engine() =>
     float a   = math.max(ta.atr(atrLen), syminfo.mintick)
     float ef  = ta.ema(close, emaFastLen)
@@ -214,7 +242,6 @@ if not na(ph)
 if not na(pl)
     addPool(pl, false)
 
-// نگه‌داشتن فقط N سطح نزدیک هر سمت (چارت تمیز)
 cleanup(bool isHigh) =>
     int cnt = 0
     if array.size(pools) > 0
@@ -243,6 +270,8 @@ var bool sweepUp   = false
 var bool sweepDown = false
 sweepUp   := false
 sweepDown := false
+float swpLvlUp   = na
+float swpLvlDown = na
 float liqAbove = 0.0
 float liqBelow = 0.0
 float nearAbove = na
@@ -265,13 +294,15 @@ if array.size(pools) > 0
                         line.set_style(q.ln, line.style_dotted)
                         line.set_color(q.ln, color.new(color.gray, 60))
                     if showSwept and showLiq
-                        q.lb := label.new(bar_index, q.price, q.isHigh ? "✖" : "✖",
+                        q.lb := label.new(bar_index, q.price, "✖",
                              style = q.isHigh ? label.style_label_down : label.style_label_up,
                              color = color.new(color.gray, 30), textcolor = color.white, size = size.tiny)
                     if q.isHigh
-                        sweepUp := true
+                        sweepUp   := true
+                        swpLvlUp  := q.price
                     else
-                        sweepDown := true
+                        sweepDown  := true
+                        swpLvlDown := q.price
                 else
                     if not na(q.ln)
                         line.set_x2(q.ln, bar_index + 3)
@@ -388,58 +419,174 @@ conf = clamp(math.abs(score) * 100 * (0.55 + 0.45 * adxF) * (0.85 + 0.15 * volF)
 regime = adxV >= 25 ? "روندی 🚀" : adxV >= 18 ? "در حال شکل‌گیری" : "رِنج 🌀"
 atrPct = atr / close * 100
 
-// ───────────────────────────── SIGNAL LOGIC ───────────────────────────────
+// ══════════════════ ADVANCED SIGNAL ENGINE (v3) ═══════════════════════════
+// فیلترها
+ext        = math.abs(close - emaSlow) / atrSafe
+volOK      = not useVolFilter or volRatio >= minVolRatio
+extOK      = ext <= maxExt
+adxOK      = not useAdx or adxV >= adxMin
+htfLongOK  = not useHTF or sHTF >  0.05
+htfShortOK = not useHTF or sHTF < -0.05
+
+// موتور ۱: روندی (عبور امتیاز از آستانه)
+trendLong  = ta.crossover(score,  sigThreshold)  and htfLongOK  and adxOK
+trendShort = ta.crossunder(score, -sigThreshold) and htfShortOK and adxOK
+
+// موتور ۲: بازگشتی (شکار نقدینگی + بازپس‌گیری سطح)
+revLong  = sweepDown and close > open and close > nz(swpLvlDown, close) and rsi < 52 and score > -0.20
+revShort = sweepUp   and close < open and close < nz(swpLvlUp,   close) and rsi > 48 and score <  0.20
+
+allowTrend = sigMode != "فقط بازگشتی"
+allowRev   = sigMode != "فقط روندی"
+
+rawLong  = (allowTrend and trendLong)  or (allowRev and revLong)
+rawShort = (allowTrend and trendShort) or (allowRev and revShort)
+isRev    = (revLong or revShort) and not (trendLong or trendShort)
+
+// کیفیت سیگنال (تعداد هم‌سویی‌ها)
+conflPts(int d) =>
+    int p = 0
+    p += (d == 1 ? sHTF >  0.05 : sHTF < -0.05) ? 1 : 0
+    p += (d == 1 ? sST  >  0    : sST  <  0)    ? 1 : 0
+    p += (d == 1 ? sVol >  0.10 : sVol < -0.10) ? 1 : 0
+    p += (d == 1 ? sLiq >  0.10 : sLiq < -0.10) ? 1 : 0
+    p += volRatio >= 1.2 ? 1 : 0
+    p += adxV >= 22 ? 1 : 0
+    p += conf >= 70 ? 1 : 0
+    p
+
+pts     = conflPts(rawLong ? 1 : -1)
+gradeS  = pts >= 6 ? "A+" : pts >= 4 ? "A" : "B"
+gradeOK = gradeRank(gradeS) >= gradeRank(minGrade)
+float confReq = isRev ? minConf * 0.8 : minConf * 1.0
+
 var int lastSigBar = -1000
-canFire  = bar_index - lastSigBar > cooldownBars
-longSig  = ta.crossover(score,  sigThreshold)  and conf >= minConf and canFire and barstate.isconfirmed
-shortSig = ta.crossunder(score, -sigThreshold) and conf >= minConf and canFire and barstate.isconfirmed
+canFire = bar_index - lastSigBar > cooldownBars
 
-var float entryP = na
-var float slP    = na
-var float tp1P   = na
-var float tp2P   = na
-var int   dir    = 0
+longSig  = rawLong  and conf >= confReq and volOK and extOK and gradeOK and canFire and barstate.isconfirmed
+shortSig = rawShort and conf >= confReq and volOK and extOK and gradeOK and canFire and barstate.isconfirmed
 
+// ───────────────────── TRADE MANAGEMENT & STATS ───────────────────────────
+var int    posDir  = 0
+var float  pEntry  = na
+var float  pSL     = na
+var float  pTP1    = na
+var float  pTP2    = na
+var float  pRisk   = na
+var bool   tp1Hit  = false
+var string pGrade  = ""
+var string pType   = ""
+var int    wins    = 0
+var int    losses  = 0
+var float  sumR    = 0.0
+
+var line  enLn = na
+var line  slLn = na
+var line  t1Ln = na
+var line  t2Ln = na
+var box   rBox = na
+var box   wBox = na
+var label rrLb = na
+
+// باز کردن معامله جدید
 if longSig or shortSig
     lastSigBar := bar_index
-    entryP := close
-    dir    := longSig ? 1 : -1
-    float risk = slAtrMult * atr
-    slP  := longSig ? close - risk : close + risk
-    tp1P := longSig ? close + risk * tp1RR : close - risk * tp1RR
-    tp2P := longSig ? close + risk * tp2RR : close - risk * tp2RR
+    posDir  := longSig ? 1 : -1
+    pEntry  := close
+    pRisk   := slAtrMult * atr
+    pSL     := longSig ? close - pRisk : close + pRisk
+    pTP1    := longSig ? close + pRisk * tp1RR : close - pRisk * tp1RR
+    pTP2    := longSig ? close + pRisk * tp2RR : close - pRisk * tp2RR
+    tp1Hit  := false
+    pGrade  := gradeS
+    pType   := isRev ? "بازگشتی 💧" : "روندی 📈"
 
-// ریسک به ریوارد (بر مبنای TP2)
-rrVal = tp2RR
-
-// برچسب سیگنال
-if showSig and (longSig or shortSig)
-    label.new(bar_index, longSig ? low : high,
-         (longSig ? "▲ BUY  " : "▼ SELL  ") + str.tostring(conf, "#") + "%  |  R:R 1:" + str.tostring(rrVal, "#.#"),
-         style = longSig ? label.style_label_up : label.style_label_down,
-         color = longSig ? color.new(#26a69a, 0) : color.new(#ef5350, 0),
-         textcolor = color.white, size = size.small)
-
-// خطوط Entry / SL / TP
-var line enLn = na
-var line slLn = na
-var line t1Ln = na
-var line t2Ln = na
-var label rrLb = na
-if showLvls and (longSig or shortSig)
     line.delete(enLn)
     line.delete(slLn)
     line.delete(t1Ln)
     line.delete(t2Ln)
+    box.delete(rBox)
+    box.delete(wBox)
     label.delete(rrLb)
-    enLn := line.new(bar_index, entryP, bar_index + 30, entryP, color = color.new(color.blue, 20), style = line.style_dashed)
-    slLn := line.new(bar_index, slP,    bar_index + 30, slP,    color = color.new(#ef5350, 0),  width = 2)
-    t1Ln := line.new(bar_index, tp1P,   bar_index + 30, tp1P,   color = color.new(#26a69a, 40), style = line.style_dashed)
-    t2Ln := line.new(bar_index, tp2P,   bar_index + 30, tp2P,   color = color.new(#26a69a, 0),  width = 2)
+
+    if showLvls
+        enLn := line.new(bar_index, pEntry, bar_index + 20, pEntry, color = color.new(color.blue, 10), style = line.style_dashed, width = 1)
+        slLn := line.new(bar_index, pSL,    bar_index + 20, pSL,    color = color.new(#ef5350, 0), width = 2)
+        t1Ln := line.new(bar_index, pTP1,   bar_index + 20, pTP1,   color = color.new(#26a69a, 40), style = line.style_dashed)
+        t2Ln := line.new(bar_index, pTP2,   bar_index + 20, pTP2,   color = color.new(#26a69a, 0), width = 2)
+    if showZones
+        rBox := box.new(bar_index, math.max(pEntry, pSL),  bar_index + 20, math.min(pEntry, pSL),
+             border_color = color.new(#ef5350, 70), bgcolor = color.new(#ef5350, 88))
+        wBox := box.new(bar_index, math.max(pEntry, pTP2), bar_index + 20, math.min(pEntry, pTP2),
+             border_color = color.new(#26a69a, 70), bgcolor = color.new(#26a69a, 88))
     if showRR
-        rrLb := label.new(bar_index + 30, tp2P, "TP2 · R:R 1:" + str.tostring(rrVal, "#.#"),
-             style = label.style_label_left, color = color.new(#26a69a, 15),
-             textcolor = color.white, size = size.tiny)
+        rrLb := label.new(bar_index + 20, pTP2, "TP2 · R:R 1:" + str.tostring(tp2RR, "#.#"),
+             style = label.style_label_left, color = color.new(#26a69a, 15), textcolor = color.white, size = size.tiny)
+    if showSig
+        label.new(bar_index, longSig ? low - atr * 0.6 : high + atr * 0.6,
+             (longSig ? "▲ BUY " : "▼ SELL ") + pGrade + "\n" + str.tostring(conf, "#") + "%  ·  R:R 1:" + str.tostring(tp2RR, "#.#") + "\n" + pType,
+             style = longSig ? label.style_label_up : label.style_label_down,
+             color = longSig ? color.new(#26a69a, 0) : color.new(#ef5350, 0),
+             textcolor = color.white, size = size.normal)
+
+// مدیریت معامله باز
+else if posDir != 0
+    if showLvls and not na(enLn)
+        line.set_x2(enLn, bar_index + 3)
+        line.set_x2(slLn, bar_index + 3)
+        line.set_x2(t1Ln, bar_index + 3)
+        line.set_x2(t2Ln, bar_index + 3)
+        line.set_y1(slLn, pSL)
+        line.set_y2(slLn, pSL)
+    if showZones and not na(rBox)
+        box.set_right(rBox, bar_index + 3)
+        box.set_right(wBox, bar_index + 3)
+        box.set_top(rBox,    math.max(pEntry, pSL))
+        box.set_bottom(rBox, math.min(pEntry, pSL))
+    if showRR and not na(rrLb)
+        label.set_x(rrLb, bar_index + 3)
+
+    bool hitTP1 = posDir == 1 ? high >= pTP1 : low  <= pTP1
+    bool hitTP2 = posDir == 1 ? high >= pTP2 : low  <= pTP2
+    bool hitSL  = posDir == 1 ? low  <= pSL  : high >= pSL
+
+    if not tp1Hit and hitTP1 and not hitSL
+        tp1Hit := true
+        if useBE
+            pSL := pEntry
+        if showExit
+            label.new(bar_index, pTP1, "TP1 ✅", style = label.style_label_left,
+                 color = color.new(#26a69a, 25), textcolor = color.white, size = size.tiny)
+    if hitTP2
+        float r = tp1Hit ? (tp1RR * 0.5 + tp2RR * 0.5) : tp2RR
+        sumR += r
+        wins += 1
+        if showExit
+            label.new(bar_index, pTP2, "TP2 🎯 +" + str.tostring(r, "#.#") + "R", style = label.style_label_left,
+                 color = color.new(#26a69a, 0), textcolor = color.white, size = size.tiny)
+        posDir := 0
+    else if hitSL
+        float r = tp1Hit ? tp1RR * 0.5 : -1.0
+        sumR += r
+        if r >= 0
+            wins += 1
+        else
+            losses += 1
+        if showExit
+            label.new(bar_index, pSL, (r >= 0 ? "BE ⚖️ +" : "SL ❌ ") + str.tostring(r, "#.#") + "R",
+                 style = label.style_label_left,
+                 color = color.new(r >= 0 ? color.gray : #ef5350, 10), textcolor = color.white, size = size.tiny)
+        posDir := 0
+
+// فلش سیگنال (همیشه واضح روی چارت)
+plotshape(showArrow and longSig,  title = "BUY arrow",  style = shape.triangleup,
+     location = location.belowbar, color = color.new(#26a69a, 0), size = size.small)
+plotshape(showArrow and shortSig, title = "SELL arrow", style = shape.triangledown,
+     location = location.abovebar, color = color.new(#ef5350, 0), size = size.small)
+
+// سود/زیان لحظه‌ای
+curR = posDir == 0 or na(pEntry) or na(pRisk) or pRisk == 0 ? 0.0 : (close - pEntry) / pRisk * posDir
+winRate = (wins + losses) > 0 ? wins / float(wins + losses) * 100 : 0.0
 
 // ───────────────────────── نمایش‌های اختیاری ──────────────────────────────
 pFast = plot(showEma ? emaFast : na, "EMA سریع", color = color.new(color.aqua, 55))
@@ -451,16 +598,23 @@ scoreCol = score > 0 ? color.new(#26a69a, int(math.max(0, 85 - math.abs(score) *
                      : color.new(#ef5350, int(math.max(0, 85 - math.abs(score) * 85)))
 barcolor(colorBars ? scoreCol : na)
 
-// ═══════════════════════ MULTI-SYMBOL SCANNER ═════════════════════════════
+// ═══════════════════════ MULTI-SYMBOL SCANNER (15) ════════════════════════
 scTF = scanTF == "" ? timeframe.period : scanTF
-[c1, k1, x1, r1] = request.security(sym1, scTF, f_engine(), lookahead = barmerge.lookahead_off)
-[c2, k2, x2, r2] = request.security(sym2, scTF, f_engine(), lookahead = barmerge.lookahead_off)
-[c3, k3, x3, r3] = request.security(sym3, scTF, f_engine(), lookahead = barmerge.lookahead_off)
-[c4, k4, x4, r4] = request.security(sym4, scTF, f_engine(), lookahead = barmerge.lookahead_off)
-[c5, k5, x5, r5] = request.security(sym5, scTF, f_engine(), lookahead = barmerge.lookahead_off)
-[c6, k6, x6, r6] = request.security(sym6, scTF, f_engine(), lookahead = barmerge.lookahead_off)
-[c7, k7, x7, r7] = request.security(sym7, scTF, f_engine(), lookahead = barmerge.lookahead_off)
-[c8, k8, x8, r8] = request.security(sym8, scTF, f_engine(), lookahead = barmerge.lookahead_off)
+[c1,  k1,  x1,  r1]  = request.security(sym1,  scTF, f_engine(), lookahead = barmerge.lookahead_off, calc_bars_count = scanBars)
+[c2,  k2,  x2,  r2]  = request.security(sym2,  scTF, f_engine(), lookahead = barmerge.lookahead_off, calc_bars_count = scanBars)
+[c3,  k3,  x3,  r3]  = request.security(sym3,  scTF, f_engine(), lookahead = barmerge.lookahead_off, calc_bars_count = scanBars)
+[c4,  k4,  x4,  r4]  = request.security(sym4,  scTF, f_engine(), lookahead = barmerge.lookahead_off, calc_bars_count = scanBars)
+[c5,  k5,  x5,  r5]  = request.security(sym5,  scTF, f_engine(), lookahead = barmerge.lookahead_off, calc_bars_count = scanBars)
+[c6,  k6,  x6,  r6]  = request.security(sym6,  scTF, f_engine(), lookahead = barmerge.lookahead_off, calc_bars_count = scanBars)
+[c7,  k7,  x7,  r7]  = request.security(sym7,  scTF, f_engine(), lookahead = barmerge.lookahead_off, calc_bars_count = scanBars)
+[c8,  k8,  x8,  r8]  = request.security(sym8,  scTF, f_engine(), lookahead = barmerge.lookahead_off, calc_bars_count = scanBars)
+[c9,  k9,  x9,  r9]  = request.security(sym9,  scTF, f_engine(), lookahead = barmerge.lookahead_off, calc_bars_count = scanBars)
+[c10, k10, x10, r10] = request.security(sym10, scTF, f_engine(), lookahead = barmerge.lookahead_off, calc_bars_count = scanBars)
+[c11, k11, x11, r11] = request.security(sym11, scTF, f_engine(), lookahead = barmerge.lookahead_off, calc_bars_count = scanBars)
+[c12, k12, x12, r12] = request.security(sym12, scTF, f_engine(), lookahead = barmerge.lookahead_off, calc_bars_count = scanBars)
+[c13, k13, x13, r13] = request.security(sym13, scTF, f_engine(), lookahead = barmerge.lookahead_off, calc_bars_count = scanBars)
+[c14, k14, x14, r14] = request.security(sym14, scTF, f_engine(), lookahead = barmerge.lookahead_off, calc_bars_count = scanBars)
+[c15, k15, x15, r15] = request.security(sym15, scTF, f_engine(), lookahead = barmerge.lookahead_off, calc_bars_count = scanBars)
 
 // ───────────────────────────── DASHBOARD ──────────────────────────────────
 f_pos(string p) =>
@@ -475,8 +629,8 @@ scoreBar(float s) =>
     int filled = int(math.max(1, math.min(5, math.round(math.abs(s) * 5))))
     str.repeat(s >= 0 ? "▰" : "▱", filled) + str.repeat("·", 5 - filled)
 
-var table dash = table.new(f_pos(dashPos), 3, dashFull ? 16 : 6, border_width = 1,
-     frame_width = 1, frame_color = color.new(color.gray, 60), bgcolor = color.new(#131722, 15))
+var table dash = table.new(f_pos(dashPos), 3, dashFull ? 19 : 9, border_width = 1,
+     frame_width = 1, frame_color = color.new(color.gray, 60), bgcolor = color.new(#131722, 10))
 
 rowFactor(int r, string name, float s, int idx) =>
     col = s > 0.1 ? #26a69a : s < -0.1 ? #ef5350 : color.gray
@@ -488,8 +642,9 @@ rowFactor(int r, string name, float s, int idx) =>
 if showDash and barstate.islast
     bias    = score > sigThreshold ? "خرید ▲" : score < -sigThreshold ? "فروش ▼" : "خنثی ■"
     biasCol = score > sigThreshold ? #26a69a : score < -sigThreshold ? #ef5350 : color.gray
+
     table.cell(dash, 0, 0, "🧠 " + shortSym(syminfo.ticker) + " · " + timeframe.period,
-         text_size = size.small, text_color = color.white, bgcolor = color.new(#2962ff, 25))
+         text_size = size.small, text_color = color.white, bgcolor = color.new(#2962ff, 20))
     table.merge_cells(dash, 0, 0, 2, 0)
 
     table.cell(dash, 0, 1, "جهت", text_size = size.tiny, text_color = color.silver, text_halign = text.align_left)
@@ -499,50 +654,70 @@ if showDash and barstate.islast
     table.cell(dash, 0, 2, "اطمینان", text_size = size.tiny, text_color = color.silver, text_halign = text.align_left)
     table.cell(dash, 1, 2, str.tostring(conf, "#") + "%", text_size = size.small, text_color = color.white,
          bgcolor = color.new(conf >= 70 ? #26a69a : conf >= 50 ? color.orange : color.gray, 40))
-    table.cell(dash, 2, 2, regime, text_size = size.tiny, text_color = color.silver)
+    table.cell(dash, 2, 2, "کیفیت " + gradeS, text_size = size.tiny,
+         text_color = gradeS == "A+" ? #26a69a : gradeS == "A" ? color.orange : color.silver)
 
-    table.cell(dash, 0, 3, "نقدینگی ↑ / ↓", text_size = size.tiny, text_color = color.silver, text_halign = text.align_left)
-    table.cell(dash, 1, 3, (na(nearAbove) ? "—" : str.tostring(nearAbove, format.mintick)), text_size = size.tiny, text_color = #ef5350)
-    table.cell(dash, 2, 3, (na(nearBelow) ? "—" : str.tostring(nearBelow, format.mintick)), text_size = size.tiny, text_color = #26a69a)
+    table.cell(dash, 0, 3, "رژیم بازار", text_size = size.tiny, text_color = color.silver, text_halign = text.align_left)
+    table.cell(dash, 1, 3, regime, text_size = size.tiny, text_color = color.white)
+    table.cell(dash, 2, 3, "ADX " + str.tostring(adxV, "#"), text_size = size.tiny, text_color = color.silver)
 
-    table.cell(dash, 0, 4, "مغناطیس نقدینگی", text_size = size.tiny, text_color = color.silver, text_halign = text.align_left)
-    table.cell(dash, 1, 4, scoreBar(sLiq), text_size = size.tiny, text_color = sLiq > 0 ? #ef5350 : #26a69a)
-    table.cell(dash, 2, 4, sLiq > 0.15 ? "به بالا" : sLiq < -0.15 ? "به پایین" : "متعادل", text_size = size.tiny, text_color = color.silver)
+    table.cell(dash, 0, 4, "نقدینگی ↑ / ↓", text_size = size.tiny, text_color = color.silver, text_halign = text.align_left)
+    table.cell(dash, 1, 4, na(nearAbove) ? "—" : str.tostring(nearAbove, format.mintick), text_size = size.tiny, text_color = #ef5350)
+    table.cell(dash, 2, 4, na(nearBelow) ? "—" : str.tostring(nearBelow, format.mintick), text_size = size.tiny, text_color = #26a69a)
 
-    plan = dir == 0 or na(entryP) ? "بدون معامله فعال" :
-         (dir == 1 ? "LONG " : "SHORT ") + str.tostring(entryP, format.mintick) +
-         " · SL " + str.tostring(slP, format.mintick) +
-         " · TP " + str.tostring(tp2P, format.mintick) + " · R:R 1:" + str.tostring(rrVal, "#.#")
-    table.cell(dash, 0, 5, plan, text_size = size.tiny, text_color = color.white,
-         bgcolor = color.new(dir == 1 ? #26a69a : dir == -1 ? #ef5350 : color.gray, 60))
-    table.merge_cells(dash, 0, 5, 2, 5)
+    table.cell(dash, 0, 5, "مغناطیس نقدینگی", text_size = size.tiny, text_color = color.silver, text_halign = text.align_left)
+    table.cell(dash, 1, 5, scoreBar(sLiq), text_size = size.tiny, text_color = sLiq > 0 ? #ef5350 : #26a69a)
+    table.cell(dash, 2, 5, sLiq > 0.15 ? "به بالا" : sLiq < -0.15 ? "به پایین" : "متعادل", text_size = size.tiny, text_color = color.silver)
+
+    plan = posDir == 0 or na(pEntry) ? "بدون معامله فعال" :
+         (posDir == 1 ? "LONG " : "SHORT ") + pGrade + " · ورود " + str.tostring(pEntry, format.mintick) +
+         " · SL " + str.tostring(pSL, format.mintick) + " · TP " + str.tostring(pTP2, format.mintick)
+    table.cell(dash, 0, 6, plan, text_size = size.tiny, text_color = color.white,
+         bgcolor = color.new(posDir == 1 ? #26a69a : posDir == -1 ? #ef5350 : color.gray, 60))
+    table.merge_cells(dash, 0, 6, 2, 6)
+
+    int rowStats = dashFull ? 17 : 7
+    int rowSign  = dashFull ? 18 : 8
 
     if dashFull
-        rowFactor(6,  "روند EMA",       sTrend, 0)
-        rowFactor(7,  "SuperTrend",     sST,    1)
-        rowFactor(8,  "RSI",            sRSI,   2)
-        rowFactor(9,  "MACD",           sMACD,  3)
-        rowFactor(10, "Stochastic",     sStoch, 4)
-        rowFactor(11, "فشار حجم",        sVol,   5)
-        rowFactor(12, "VWAP",           sVWAP,  6)
-        rowFactor(13, "HTF " + htfTF,   sHTF,   7)
-        rowFactor(14, "مغناطیس نقدینگی", sLiq,   8)
-        table.cell(dash, 0, 15, "ADX " + str.tostring(adxV, "#") + " · ATR " + str.tostring(atrPct, "#.##") + "% · حجم ×" + str.tostring(volRatio, "#.0"),
+        rowFactor(7,  "روند EMA",       sTrend, 0)
+        rowFactor(8,  "SuperTrend",     sST,    1)
+        rowFactor(9,  "RSI",            sRSI,   2)
+        rowFactor(10, "MACD",           sMACD,  3)
+        rowFactor(11, "Stochastic",     sStoch, 4)
+        rowFactor(12, "فشار حجم",        sVol,   5)
+        rowFactor(13, "VWAP",           sVWAP,  6)
+        rowFactor(14, "HTF " + htfTF,   sHTF,   7)
+        rowFactor(15, "مغناطیس نقدینگی", sLiq,   8)
+        table.cell(dash, 0, 16, "ATR " + str.tostring(atrPct, "#.##") + "% · حجم ×" + str.tostring(volRatio, "#.0") + " · کشیدگی " + str.tostring(ext, "#.#") + "×",
              text_size = size.tiny, text_color = color.new(color.silver, 20))
-        table.merge_cells(dash, 0, 15, 2, 15)
+        table.merge_cells(dash, 0, 16, 2, 16)
 
-// ───────────────────────── SCANNER TABLE ──────────────────────────────────
-var table scan = table.new(f_pos(scanPos), 5, 10, border_width = 1,
+    stats = not showStats ? "—" :
+         "📊 " + str.tostring(wins) + "W / " + str.tostring(losses) + "L · WR " + str.tostring(winRate, "#") + "% · " +
+         (sumR >= 0 ? "+" : "") + str.tostring(sumR, "#.#") + "R" +
+         (posDir != 0 ? "  |  جاری: " + (curR >= 0 ? "+" : "") + str.tostring(curR, "#.##") + "R" : "")
+    table.cell(dash, 0, rowStats, stats, text_size = size.tiny, text_color = color.white,
+         bgcolor = color.new(sumR > 0 ? #26a69a : sumR < 0 ? #ef5350 : color.gray, 70))
+    table.merge_cells(dash, 0, rowStats, 2, rowStats)
+
+    table.cell(dash, 0, rowSign, "✍️ " + sigText, text_size = size.tiny,
+         text_color = color.new(color.white, 10), bgcolor = color.new(#2962ff, 45))
+    table.merge_cells(dash, 0, rowSign, 2, rowSign)
+
+// ───────────────────────── SCANNER TABLE (15) ─────────────────────────────
+var table scan = table.new(f_pos(scanPos), 5, 17, border_width = 1,
      frame_width = 1, frame_color = color.new(color.gray, 60), bgcolor = color.new(#131722, 10))
 
 if showScan and barstate.islast
-    array<string> names = array.from(shortSym(sym1), shortSym(sym2), shortSym(sym3), shortSym(sym4),
-                                     shortSym(sym5), shortSym(sym6), shortSym(sym7), shortSym(sym8))
-    array<float>  scs   = array.from(c1, c2, c3, c4, c5, c6, c7, c8)
-    array<float>  cfs   = array.from(k1, k2, k3, k4, k5, k6, k7, k8)
-    array<float>  frs   = array.from(r1, r2, r3, r4, r5, r6, r7, r8)
+    array<string> names = array.from(shortSym(sym1),  shortSym(sym2),  shortSym(sym3),  shortSym(sym4),  shortSym(sym5),
+                                     shortSym(sym6),  shortSym(sym7),  shortSym(sym8),  shortSym(sym9),  shortSym(sym10),
+                                     shortSym(sym11), shortSym(sym12), shortSym(sym13), shortSym(sym14), shortSym(sym15))
+    array<float> scs = array.from(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15)
+    array<float> cfs = array.from(k1, k2, k3, k4, k5, k6, k7, k8, k9, k10, k11, k12, k13, k14, k15)
+    array<float> frs = array.from(r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15)
 
-    table.cell(scan, 0, 0, "🔎 اسکنر · " + scTF, text_size = size.small, text_color = color.white, bgcolor = color.new(#2962ff, 25))
+    table.cell(scan, 0, 0, "🔎 اسکنر ۱۵ ارز · " + scTF, text_size = size.small, text_color = color.white, bgcolor = color.new(#2962ff, 20))
     table.merge_cells(scan, 0, 0, 4, 0)
     table.cell(scan, 0, 1, "ارز",     text_size = size.tiny, text_color = color.new(color.white, 30))
     table.cell(scan, 1, 1, "جهت",    text_size = size.tiny, text_color = color.new(color.white, 30))
@@ -553,12 +728,12 @@ if showScan and barstate.islast
     array<int> ordIdx = array.sort_indices(cfs, order.descending)
     int row = 2
     for j = 0 to array.size(ordIdx) - 1
-        if row <= 9
-            int    k  = array.get(ordIdx, j)
-            float  sc = array.get(scs, k)
-            float  cf = array.get(cfs, k)
-            float  fr = array.get(frs, k)
-            bool   ok = cf >= minConf and math.abs(sc) >= sigThreshold
+        if row <= 16
+            int   k  = array.get(ordIdx, j)
+            float sc = array.get(scs, k)
+            float cf = array.get(cfs, k)
+            float fr = array.get(frs, k)
+            bool  ok = cf >= minConf and math.abs(sc) >= sigThreshold
             if not scanReady or ok
                 string dirTxt = sc > 0 ? "▲ خرید" : sc < 0 ? "▼ فروش" : "■"
                 color  dirCol = sc > 0.05 ? #26a69a : sc < -0.05 ? #ef5350 : color.gray
@@ -580,18 +755,22 @@ alertcondition(sweepDown, "✖ شکار نقدینگی پایین","SSL swept")
 
 if longSig or shortSig
     alert((longSig ? "🟢 BUY " : "🔴 SELL ") + syminfo.ticker + " | " + timeframe.period +
-         "\nقیمت: "     + str.tostring(close, format.mintick) +
-         "\nاطمینان: "  + str.tostring(conf, "#") + "% | R:R 1:" + str.tostring(rrVal, "#.#") +
-         "\nSL: "  + str.tostring(slP,  format.mintick) +
-         " | TP1: " + str.tostring(tp1P, format.mintick) +
-         " | TP2: " + str.tostring(tp2P, format.mintick), alert.freq_once_per_bar_close)
+         "\nکیفیت: " + gradeS + " (" + pType + ")" +
+         "\nقیمت: "   + str.tostring(close, format.mintick) +
+         "\nاطمینان: " + str.tostring(conf, "#") + "% | R:R 1:" + str.tostring(tp2RR, "#.#") +
+         "\nSL: "  + str.tostring(pSL,  format.mintick) +
+         " | TP1: " + str.tostring(pTP1, format.mintick) +
+         " | TP2: " + str.tostring(pTP2, format.mintick) +
+         "\n— " + sigText, alert.freq_once_per_bar_close)
 
-// هشدار اسکنر چند ارزی
-scanMsg(string s, float sc, float cf, float fr) =>
+// هشدار اسکنر
+scanMsg(string s, float cf, float fr) =>
     fr != 0 and cf >= minConf ? (fr > 0 ? "🟢 " : "🔴 ") + shortSym(s) + " " + str.tostring(cf, "#") + "%\n" : ""
 
-msgAll = scanMsg(sym1, c1, k1, r1) + scanMsg(sym2, c2, k2, r2) + scanMsg(sym3, c3, k3, r3) + scanMsg(sym4, c4, k4, r4) +
-         scanMsg(sym5, c5, k5, r5) + scanMsg(sym6, c6, k6, r6) + scanMsg(sym7, c7, k7, r7) + scanMsg(sym8, c8, k8, r8)
+msgAll = scanMsg(sym1, k1, r1) + scanMsg(sym2, k2, r2) + scanMsg(sym3, k3, r3) + scanMsg(sym4, k4, r4) +
+         scanMsg(sym5, k5, r5) + scanMsg(sym6, k6, r6) + scanMsg(sym7, k7, r7) + scanMsg(sym8, k8, r8) +
+         scanMsg(sym9, k9, r9) + scanMsg(sym10, k10, r10) + scanMsg(sym11, k11, r11) + scanMsg(sym12, k12, r12) +
+         scanMsg(sym13, k13, r13) + scanMsg(sym14, k14, r14) + scanMsg(sym15, k15, r15)
 
 if showScan and str.length(msgAll) > 0 and barstate.isconfirmed
-    alert("🔎 فرصت جدید در اسکنر (" + scTF + "):\n" + msgAll, alert.freq_once_per_bar_close)
+    alert("🔎 فرصت جدید در اسکنر (" + scTF + "):\n" + msgAll + "— " + sigText, alert.freq_once_per_bar_close)
