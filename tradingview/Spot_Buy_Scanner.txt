@@ -1,0 +1,536 @@
+//@version=6
+// ═══════════════════════════════════════════════════════════════════════════
+//  Spot Buy Scanner — خرید اسپات و نگهداری چند ساعته
+//  ✍️  طراحی و توسعه توسط آرمان ناصری
+//
+//  این اندیکاتور ۱۵ ارز را اسکن می‌کند و فقط می‌گوید:
+//    ✅ کدام ارز را همین حالا برای اسپات بخریم
+//    🎯 کجا بفروشیم (هدف اول، هدف دوم)
+//    🛑 کجا ضرر را ببندیم
+//    ⌛ حداکثر چند ساعت نگه داریم
+//
+//  موتور تحلیل = ترکیب هر چهار اندیکاتور قبلی:
+//    ۱) روند و جهت بازار (EMA + ساختار + ADX)      ← اندیکاتور دوم
+//    ۲) اردربلاک و ناحیه ارزش (پولبک سالم)          ← اندیکاتور دوم
+//    ۳) حجم افزایشی                                  ← اندیکاتور سوم
+//    ۴) حجم تازه‌بیدارشده و ضد اشباع                 ← اندیکاتور چهارم
+//    ۵) امتیازدهی وزنی چندعاملی + فیلتر سلامت بازار ← اندیکاتور اول
+// ═══════════════════════════════════════════════════════════════════════════
+
+indicator("Spot Buy Scanner [Arman Naseri]", shorttitle = "SPOT BUY",
+     overlay = true, max_labels_count = 100, max_lines_count = 100)
+
+// ───────────────────────────────── INPUTS ─────────────────────────────────
+var string g1 = "🎯 استراتژی خرید"
+minScore  = input.int(65, "حداقل امتیاز برای سیگنال خرید", minval = 30, maxval = 95, group = g1)
+maxRsiBuy = input.float(68, "سقف RSI هنگام خرید (ضد اشباع)", minval = 50, maxval = 85, step = 1, group = g1)
+needBtcOk = input.bool(true, "فقط وقتی بازار کلی (بیت‌کوین) سالم است بخر", group = g1)
+
+var string g2 = "💰 برنامه فروش"
+tp1Mult   = input.float(1.2, "هدف اول = چند برابر ATR", minval = 0.3, step = 0.1, group = g2)
+tp2Mult   = input.float(2.4, "هدف دوم = چند برابر ATR", minval = 0.6, step = 0.1, group = g2)
+slMult    = input.float(1.6, "حد ضرر = چند برابر ATR",  minval = 0.5, step = 0.1, group = g2)
+holdHours = input.int(12, "حداکثر ساعت نگهداری", minval = 1, maxval = 120, group = g2)
+exitRsi   = input.float(78, "فروش اضطراری اگر RSI از این بالاتر رفت", minval = 65, maxval = 95, step = 1, group = g2)
+exitEma   = input.bool(true, "فروش اگر قیمت زیر EMA20 بسته شد", group = g2)
+
+var string g3 = "🔎 اسکنر"
+scanTF    = input.timeframe("60", "تایم‌فریم تحلیل (پیشنهاد: ۶۰ یا ۱۲۰)", group = g3)
+onlyBuy   = input.bool(false, "فقط ارزهای قابل خرید را نشان بده", group = g3)
+scanBars  = input.int(900, "عمق محاسبه (کندل)", minval = 300, maxval = 5000, step = 100, group = g3)
+exchSel   = input.string("BINANCE", "صرافی (برای همه ارزها)",
+     options = ["AUTO (همان صرافی چارت)", "BINANCE", "BINANCE فیوچرز", "BYBIT", "BYBIT فیوچرز",
+                "OKX", "MEXC", "KUCOIN", "GATEIO", "COINBASE", "بدون پیشوند"], group = g3,
+     tooltip = "اگر خطای «نماد پشتیبانی نمی‌شود» گرفتی، صرافی را عوض کن یا AUTO بگذار")
+// نام ارزها بدون پیشوند صرافی وارد شود؛ مثال: BTCUSDT
+tk1  = input.string("BTCUSDT",  "ارز ۱",  group = g3)
+tk2  = input.string("ETHUSDT",  "ارز ۲",  group = g3)
+tk3  = input.string("SOLUSDT",  "ارز ۳",  group = g3)
+tk4  = input.string("BNBUSDT",  "ارز ۴",  group = g3)
+tk5  = input.string("XRPUSDT",  "ارز ۵",  group = g3)
+tk6  = input.string("DOGEUSDT", "ارز ۶",  group = g3)
+tk7  = input.string("ADAUSDT",  "ارز ۷",  group = g3)
+tk8  = input.string("AVAXUSDT", "ارز ۸",  group = g3)
+tk9  = input.string("LINKUSDT", "ارز ۹",  group = g3)
+tk10 = input.string("TONUSDT",  "ارز ۱۰", group = g3)
+tk11 = input.string("TRXUSDT",  "ارز ۱۱", group = g3)
+tk12 = input.string("DOTUSDT",  "ارز ۱۲", group = g3)
+tk13 = input.string("NEARUSDT", "ارز ۱۳", group = g3)
+tk14 = input.string("SUIUSDT",  "ارز ۱۴", group = g3)
+tk15 = input.string("LTCUSDT",  "ارز ۱۵", group = g3)
+
+var string g4 = "🖥️ نمایش"
+panelMode = input.string("برچسب (موبایل)", "نوع نمایش",
+     options = ["برچسب (موبایل)", "جدول", "هر دو"], group = g4)
+tblPos    = input.string("پایین-راست", "محل جدول",
+     options = ["پایین-راست", "پایین-چپ", "بالا-راست", "بالا-چپ"], group = g4)
+showLines = input.bool(true, "خط‌های ورود / هدف / حد ضرر روی چارت", group = g4)
+markChart = input.bool(true, "علامت خرید و فروش روی چارت", group = g4)
+sigText   = input.string("طراحی و توسعه توسط آرمان ناصری", "امضا", group = g4)
+
+// ───────────────────── ساخت نماد کامل (ضد خطای نماد) ──────────────────────
+pfx = switch exchSel
+    "AUTO (همان صرافی چارت)" => syminfo.prefix + ":"
+    "BINANCE"        => "BINANCE:"
+    "BINANCE فیوچرز" => "BINANCE:"
+    "BYBIT"          => "BYBIT:"
+    "BYBIT فیوچرز"   => "BYBIT:"
+    "OKX"            => "OKX:"
+    "MEXC"           => "MEXC:"
+    "KUCOIN"         => "KUCOIN:"
+    "GATEIO"         => "GATEIO:"
+    "COINBASE"       => "COINBASE:"
+    => ""
+sfx = exchSel == "BINANCE فیوچرز" or exchSel == "BYBIT فیوچرز" ? ".P" : ""
+
+sym1  = str.length(tk1)  == 0 ? syminfo.tickerid : pfx + str.upper(tk1)  + sfx
+sym2  = str.length(tk2)  == 0 ? syminfo.tickerid : pfx + str.upper(tk2)  + sfx
+sym3  = str.length(tk3)  == 0 ? syminfo.tickerid : pfx + str.upper(tk3)  + sfx
+sym4  = str.length(tk4)  == 0 ? syminfo.tickerid : pfx + str.upper(tk4)  + sfx
+sym5  = str.length(tk5)  == 0 ? syminfo.tickerid : pfx + str.upper(tk5)  + sfx
+sym6  = str.length(tk6)  == 0 ? syminfo.tickerid : pfx + str.upper(tk6)  + sfx
+sym7  = str.length(tk7)  == 0 ? syminfo.tickerid : pfx + str.upper(tk7)  + sfx
+sym8  = str.length(tk8)  == 0 ? syminfo.tickerid : pfx + str.upper(tk8)  + sfx
+sym9  = str.length(tk9)  == 0 ? syminfo.tickerid : pfx + str.upper(tk9)  + sfx
+sym10 = str.length(tk10) == 0 ? syminfo.tickerid : pfx + str.upper(tk10) + sfx
+sym11 = str.length(tk11) == 0 ? syminfo.tickerid : pfx + str.upper(tk11) + sfx
+sym12 = str.length(tk12) == 0 ? syminfo.tickerid : pfx + str.upper(tk12) + sfx
+sym13 = str.length(tk13) == 0 ? syminfo.tickerid : pfx + str.upper(tk13) + sfx
+sym14 = str.length(tk14) == 0 ? syminfo.tickerid : pfx + str.upper(tk14) + sfx
+sym15 = str.length(tk15) == 0 ? syminfo.tickerid : pfx + str.upper(tk15) + sfx
+btcSym = pfx + "BTCUSDT" + sfx
+
+// ───────────────────────────────── HELPERS ────────────────────────────────
+clamp(float x, float lo, float hi) => math.max(lo, math.min(hi, x))
+
+shortSym(string s) =>
+    int    p = str.pos(s, ":")
+    string t = na(p) ? s : str.substring(s, p + 1)
+    t := str.replace_all(t, "USDT.P", "")
+    t := str.replace_all(t, "USDT", "")
+    t := str.replace_all(t, "PERP", "")
+    t
+
+fmtPx(float p) =>
+    string f = p >= 1000 ? "#.#" : p >= 100 ? "#.##" : p >= 1 ? "#.####" : "#.######"
+    str.tostring(p, f)
+
+pctOf(float a, float b) => b != 0 ? (a - b) / b * 100 : 0.0
+
+// ═══════════ موتور تحلیل اسپات (ترکیب هر چهار اندیکاتور قبلی) ═════════════
+// خروجی: [امتیاز، قیمت، هدف۱، هدف۲، حدضرر، RSI، رشد حجم٪، ATR٪]
+f_spot() =>
+    // ── پایه‌ها ──
+    float e20   = ta.ema(close, 20)
+    float e50   = ta.ema(close, 50)
+    float e200  = ta.ema(close, 200)
+    float rsiV  = ta.rsi(close, 14)
+    float atrV  = ta.atr(14)
+    [mLine, mSig, macdH] = ta.macd(close, 12, 26, 9)
+    [diP, diM, adxV]  = ta.dmi(14, 14)
+    float vMA   = ta.sma(volume, 20)
+    float vRec  = ta.sma(volume, 10)
+    float vPri  = vRec[10]
+    float hi20  = ta.highest(high, 20)
+    float lo20  = ta.lowest(low, 20)
+    float lo10  = ta.lowest(low, 10)
+    float hh10  = ta.highest(high, 10)[1]
+
+    float macdGap = mLine - mSig
+    float dmiGap  = diP - diM
+
+    // ── ۱) روند (اندیکاتور دوم) ──
+    float trendS = 0.0
+    trendS += (close > e50  ? 0.4 : 0.0)
+    trendS += (e50   > e200 ? 0.4 : 0.0)
+    trendS += (close > e200 ? 0.2 : 0.0)
+
+    // ── ۲) مومنتوم ──
+    float momoS = 0.0
+    momoS += (macdH > 0 ? 0.55 : 0.0)
+    momoS += (macdH > nz(macdH[1]) ? 0.30 : 0.0)
+    momoS += (macdGap > 0 and dmiGap > 0 ? 0.15 : 0.0)
+
+    // ── ۳) RSI در ناحیه سالم (نه کف مرده، نه اشباع) ──
+    float rsiS = rsiV >= 45 and rsiV <= 63 ? 1.0 :
+                 rsiV > 63  and rsiV <= 70 ? 0.55 :
+                 rsiV >= 38 and rsiV < 45  ? 0.6 : 0.1
+
+    // ── ۴) حجم افزایشی و تازه (اندیکاتور سوم و چهارم) ──
+    float vChg = vPri > 0 ? (vRec - vPri) / vPri * 100 : 0.0
+    float vRat = vMA  > 0 ? volume / vMA : 1.0
+    float volS = vChg >= 10 and vChg <= 110 ? clamp(vChg / 60, 0.35, 1.0) :
+                 vChg > 110 ? 0.35 : vChg > 0 ? 0.25 : 0.0
+    volS := vRat > 3.0 ? volS * 0.5 : volS   // حجم منفجرشده = دیر شده
+
+    // ── ۵) ناحیه ارزش / پولبک سالم (اردربلاک) ──
+    float rng  = hi20 - lo20
+    float pos  = rng > 0 ? (close - lo20) / rng * 100 : 50.0
+    float pullS = pos >= 30 and pos <= 72 ? 1.0 :
+                  pos > 72 and pos <= 88  ? 0.5 :
+                  pos < 30 and pos >= 15  ? 0.55 : 0.15
+
+    // ── ۶) قدرت روند ──
+    float adxS = clamp((nz(adxV) - 14) / 14, 0.0, 1.0)
+
+    // ── ۷) ساختار: کف‌های بالاتر یا شکست سقف ──
+    float strS = 0.0
+    strS += (lo10 > nz(lo20) ? 0.5 : 0.0)
+    strS += (close > nz(hh10) ? 0.5 : 0.0)
+
+    // ── ۸) نوسان منطقی (نه مرده، نه دیوانه) ──
+    float atrP = close > 0 ? atrV / close * 100 : 0.0
+    float volaS = atrP >= 0.4 and atrP <= 5.0 ? 1.0 : atrP < 0.4 ? 0.3 : 0.25
+
+    // ── امتیاز نهایی وزنی (۰ تا ۱۰۰) ──
+    float raw = trendS * 2.0 + momoS * 1.5 + rsiS * 1.2 + volS * 1.5 +
+                pullS  * 1.2 + adxS  * 1.0 + strS * 0.8 + volaS * 0.8
+    float sc  = clamp(raw * 10.0, 0.0, 100.0)
+
+    // ── برنامه خروج ──
+    float tp1 = close + atrV * tp1Mult
+    float tp2 = close + atrV * tp2Mult
+    float sl  = math.min(close - atrV * slMult, lo10 * 0.998)
+
+    [sc, close, tp1, tp2, sl, rsiV, vChg, atrP]
+
+// ───────────── سلامت بازار کلی (بیت‌کوین) — فیلتر اندیکاتور اول ───────────
+f_btc() =>
+    float be50  = ta.ema(close, 50)
+    float be200 = ta.ema(close, 200)
+    float brsi  = ta.rsi(close, 14)
+    float bsc = 0.0
+    bsc += (close > be50  ? 40 : 0)
+    bsc += (be50  > be200 ? 30 : 0)
+    bsc += (brsi  > 45    ? 30 : 0)
+    bsc
+
+btcHealth = request.security(btcSym, scanTF, f_btc(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+btcOk   = na(btcHealth) or nz(btcHealth) >= 40
+btcTxt  = na(btcHealth) ? "نامشخص" : nz(btcHealth) >= 70 ? "🟢 سالم" :
+          nz(btcHealth) >= 40 ? "🟡 خنثی" : "🔴 ضعیف"
+mktMult = btcOk ? 1.0 : (needBtcOk ? 0.75 : 0.9)
+
+// ─────────────────────── وضعیت هر ارز ────────────────────────────────────
+stateOf(float sc, float rsiV) =>
+    string st = "—"
+    if sc <= 0
+        st := "—"
+    else if sc >= minScore and rsiV <= maxRsiBuy and (btcOk or not needBtcOk)
+        st := "🟢 بخر"
+    else if sc >= minScore and rsiV > maxRsiBuy
+        st := "⚠️ داغ / صبر"
+    else if sc >= minScore * 0.85
+        st := "⏳ نزدیک است"
+    else if sc >= minScore * 0.6
+        st := "😐 ضعیف"
+    else
+        st := "🚫 نخر"
+    st
+
+// ───────────────────────── تحلیل ارز جاری چارت ───────────────────────────
+scTF = scanTF == "" ? timeframe.period : scanTF
+[mySc0, myPx, myTp1, myTp2, mySl, myRsi, myVchg, myAtrP] = request.security(syminfo.tickerid, scTF,
+     f_spot(), lookahead = barmerge.lookahead_off, calc_bars_count = scanBars,
+     ignore_invalid_symbol = true)
+mySc    = nz(mySc0) * mktMult
+myState = stateOf(mySc, nz(myRsi))
+myBuy   = myState == "🟢 بخر"
+
+// ───────────────────────── اسکن ۱۵ ارز ───────────────────────────────────
+[s1, p1, x1, y1, z1, r1, v1, t1]    = request.security(sym1,  scTF, f_spot(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[s2, p2, x2, y2, z2, r2, v2, t2]    = request.security(sym2,  scTF, f_spot(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[s3, p3, x3, y3, z3, r3, v3, t3]    = request.security(sym3,  scTF, f_spot(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[s4, p4, x4, y4, z4, r4, v4, t4]    = request.security(sym4,  scTF, f_spot(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[s5, p5, x5, y5, z5, r5, v5, t5]    = request.security(sym5,  scTF, f_spot(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[s6, p6, x6, y6, z6, r6, v6, t6]    = request.security(sym6,  scTF, f_spot(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[s7, p7, x7, y7, z7, r7, v7, t7]    = request.security(sym7,  scTF, f_spot(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[s8, p8, x8, y8, z8, r8, v8, t8]    = request.security(sym8,  scTF, f_spot(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[s9, p9, x9, y9, z9, r9, v9, t9]    = request.security(sym9,  scTF, f_spot(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[s10, p10, x10, y10, z10, r10, v10, t10] = request.security(sym10, scTF, f_spot(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[s11, p11, x11, y11, z11, r11, v11, t11] = request.security(sym11, scTF, f_spot(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[s12, p12, x12, y12, z12, r12, v12, t12] = request.security(sym12, scTF, f_spot(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[s13, p13, x13, y13, z13, r13, v13, t13] = request.security(sym13, scTF, f_spot(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[s14, p14, x14, y14, z14, r14, v14, t14] = request.security(sym14, scTF, f_spot(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+[s15, p15, x15, y15, z15, r15, v15, t15] = request.security(sym15, scTF, f_spot(), lookahead = barmerge.lookahead_off,
+     calc_bars_count = scanBars, ignore_invalid_symbol = true)
+
+// ═════════════════ مدیریت معامله روی ارز جاری چارت ════════════════════════
+e20now = ta.ema(close, 20)
+barsPerHour = timeframe.in_seconds(timeframe.period) > 0 ?
+     3600.0 / timeframe.in_seconds(timeframe.period) : 1.0
+maxHoldBars = math.max(1.0, math.round(holdHours * barsPerHour))
+
+var bool  inPos    = false
+var float posEntry = na
+var float posTp1   = na
+var float posTp2   = na
+var float posSl    = na
+var int   posBar   = na
+var bool  tp1Hit   = false
+var string exitWhy = ""
+
+buySig = myBuy and not inPos and barstate.isconfirmed
+
+if buySig
+    inPos    := true
+    posEntry := close
+    posTp1   := nz(myTp1, close * 1.01)
+    posTp2   := nz(myTp2, close * 1.02)
+    posSl    := nz(mySl,  close * 0.98)
+    posBar   := bar_index
+    tp1Hit   := false
+    exitWhy  := ""
+
+if inPos and not tp1Hit and high >= posTp1
+    tp1Hit := true
+
+sellSig = false
+if inPos and not buySig
+    if low <= posSl
+        sellSig := true
+        exitWhy := "🛑 حد ضرر خورد"
+    else if high >= posTp2
+        sellSig := true
+        exitWhy := "🎯 هدف دوم — کامل بفروش"
+    else if nz(myRsi) >= exitRsi
+        sellSig := true
+        exitWhy := "🔥 اشباع خرید — سود را بگیر"
+    else if exitEma and close < e20now and nz(close[1]) < nz(e20now[1]) and tp1Hit
+        sellSig := true
+        exitWhy := "📉 روند کوتاه‌مدت شکست"
+    else if bar_index - posBar >= maxHoldBars
+        sellSig := true
+        exitWhy := "⌛ زمان نگهداری تمام شد"
+
+if sellSig
+    inPos  := false
+    tp1Hit := false
+
+posPnl = inPos and not na(posEntry) ? pctOf(close, posEntry) : 0.0
+posAge = inPos and not na(posBar) ? int(math.round((bar_index - posBar) / barsPerHour)) : 0
+
+// ───────────────────────── نمایش روی چارت ────────────────────────────────
+plotshape(markChart and buySig, title = "خرید", style = shape.labelup,
+     location = location.belowbar, color = color.new(#26a69a, 0), textcolor = color.white,
+     text = "بخر", size = size.small)
+plotshape(markChart and sellSig, title = "فروش", style = shape.labeldown,
+     location = location.abovebar, color = color.new(#ef5350, 0), textcolor = color.white,
+     text = "بفروش", size = size.small)
+
+plot(showLines and inPos ? posEntry : na, "ورود",    color = color.new(color.blue, 0),  style = plot.style_linebr, linewidth = 2)
+plot(showLines and inPos ? posTp1   : na, "هدف ۱",   color = color.new(#26a69a, 30),    style = plot.style_linebr, linewidth = 1)
+plot(showLines and inPos ? posTp2   : na, "هدف ۲",   color = color.new(#26a69a, 0),     style = plot.style_linebr, linewidth = 2)
+plot(showLines and inPos ? posSl    : na, "حد ضرر",  color = color.new(#ef5350, 0),     style = plot.style_linebr, linewidth = 2)
+
+// ───────────────────────────── پنل‌ها ─────────────────────────────────────
+f_pos(string p) =>
+    switch p
+        "بالا-راست"  => position.top_right
+        "بالا-چپ"    => position.top_left
+        "پایین-راست" => position.bottom_right
+        "پایین-چپ"   => position.bottom_left
+        => position.bottom_right
+
+useTbl = panelMode == "جدول" or panelMode == "هر دو"
+useLbl = panelMode == "برچسب (موبایل)" or panelMode == "هر دو"
+
+var label pnl = na
+loRef = ta.lowest(low, 60)
+
+var table tb = table.new(f_pos(tblPos), 8, 20, border_width = 1, frame_width = 1,
+     frame_color = color.new(color.gray, 60), bgcolor = color.new(#131722, 8))
+
+fillRow(int r, int cols) =>
+    for c = 0 to cols - 1
+        table.cell(tb, c, r, "")
+
+planTxt() =>
+    string s = ""
+    if inPos
+        s := "📌 معامله باز از " + fmtPx(posEntry) +
+             "  (" + (posPnl >= 0 ? "+" : "") + str.tostring(posPnl, "#.##") + "%)" +
+             "\n🎯 هدف۱ " + fmtPx(posTp1) + (tp1Hit ? " ✅ زده شد" : "") +
+             "   🎯 هدف۲ " + fmtPx(posTp2) +
+             "\n🛑 حد ضرر " + fmtPx(posSl) +
+             "\n⌛ " + str.tostring(posAge) + " ساعت نگه داشته‌ای از " + str.tostring(holdHours)
+    else
+        s := "📭 معامله‌ای باز نیست" + (str.length(exitWhy) > 0 ? "  ·  آخرین خروج: " + exitWhy : "")
+    s
+
+if barstate.islast
+    array<string> nm = array.from(shortSym(sym1), shortSym(sym2), shortSym(sym3), shortSym(sym4),
+                                  shortSym(sym5), shortSym(sym6), shortSym(sym7), shortSym(sym8),
+                                  shortSym(sym9), shortSym(sym10), shortSym(sym11), shortSym(sym12),
+                                  shortSym(sym13), shortSym(sym14), shortSym(sym15))
+    array<float> scA = array.from(nz(s1), nz(s2), nz(s3), nz(s4), nz(s5), nz(s6), nz(s7), nz(s8),
+                                  nz(s9), nz(s10), nz(s11), nz(s12), nz(s13), nz(s14), nz(s15))
+    array<float> pxA = array.from(nz(p1), nz(p2), nz(p3), nz(p4), nz(p5), nz(p6), nz(p7), nz(p8),
+                                  nz(p9), nz(p10), nz(p11), nz(p12), nz(p13), nz(p14), nz(p15))
+    array<float> t1A = array.from(nz(x1), nz(x2), nz(x3), nz(x4), nz(x5), nz(x6), nz(x7), nz(x8),
+                                  nz(x9), nz(x10), nz(x11), nz(x12), nz(x13), nz(x14), nz(x15))
+    array<float> t2A = array.from(nz(y1), nz(y2), nz(y3), nz(y4), nz(y5), nz(y6), nz(y7), nz(y8),
+                                  nz(y9), nz(y10), nz(y11), nz(y12), nz(y13), nz(y14), nz(y15))
+    array<float> slA = array.from(nz(z1), nz(z2), nz(z3), nz(z4), nz(z5), nz(z6), nz(z7), nz(z8),
+                                  nz(z9), nz(z10), nz(z11), nz(z12), nz(z13), nz(z14), nz(z15))
+    array<float> rsA = array.from(nz(r1), nz(r2), nz(r3), nz(r4), nz(r5), nz(r6), nz(r7), nz(r8),
+                                  nz(r9), nz(r10), nz(r11), nz(r12), nz(r13), nz(r14), nz(r15))
+    array<float> vcA = array.from(nz(v1), nz(v2), nz(v3), nz(v4), nz(v5), nz(v6), nz(v7), nz(v8),
+                                  nz(v9), nz(v10), nz(v11), nz(v12), nz(v13), nz(v14), nz(v15))
+    array<float> atA = array.from(nz(t1), nz(t2), nz(t3), nz(t4), nz(t5), nz(t6), nz(t7), nz(t8),
+                                  nz(t9), nz(t10), nz(t11), nz(t12), nz(t13), nz(t14), nz(t15))
+    array<bool>  okA = array.from(not na(s1), not na(s2), not na(s3), not na(s4), not na(s5),
+                                  not na(s6), not na(s7), not na(s8), not na(s9), not na(s10),
+                                  not na(s11), not na(s12), not na(s13), not na(s14), not na(s15))
+
+    // اعمال فیلتر سلامت بازار روی همه امتیازها
+    for j = 0 to array.size(scA) - 1
+        array.set(scA, j, array.get(scA, j) * mktMult)
+
+    array<int> ord = array.sort_indices(scA, order.descending)
+
+    int noData = 0
+    for j = 0 to array.size(okA) - 1
+        if not array.get(okA, j)
+            noData += 1
+    string warnTxt = noData > 0 ? "⚠️ " + str.tostring(noData) + " نماد بدون داده — صرافی/نام ارز را اصلاح کن" : ""
+
+    // ── جدول ──
+    if useTbl
+        fillRow(0, 8)
+        table.cell(tb, 0, 0, "💎 خرید اسپات · " + scTF + "  |  بازار: " + btcTxt +
+             (noData > 0 ? "  " + warnTxt : ""),
+             text_size = size.small, text_color = color.white, bgcolor = color.new(#2962ff, 15))
+        table.merge_cells(tb, 0, 0, 7, 0)
+        table.cell(tb, 0, 1, "ارز",     text_size = size.tiny, text_color = color.new(color.white, 30))
+        table.cell(tb, 1, 1, "امتیاز",  text_size = size.tiny, text_color = color.new(color.white, 30))
+        table.cell(tb, 2, 1, "وضعیت",   text_size = size.tiny, text_color = color.new(color.white, 30))
+        table.cell(tb, 3, 1, "حجم",     text_size = size.tiny, text_color = color.new(color.white, 30))
+        table.cell(tb, 4, 1, "ورود",    text_size = size.tiny, text_color = color.new(color.white, 30))
+        table.cell(tb, 5, 1, "هدف ۱",   text_size = size.tiny, text_color = color.new(color.white, 30))
+        table.cell(tb, 6, 1, "هدف ۲",   text_size = size.tiny, text_color = color.new(color.white, 30))
+        table.cell(tb, 7, 1, "حد ضرر",  text_size = size.tiny, text_color = color.new(color.white, 30))
+        int row = 2
+        for j = 0 to array.size(ord) - 1
+            if row <= 17
+                int    k  = array.get(ord, j)
+                float  sc = array.get(scA, k)
+                float  rs = array.get(rsA, k)
+                string st = stateOf(sc, rs)
+                if sc > 0 and (not onlyBuy or st == "🟢 بخر")
+                    color stc = st == "🟢 بخر" ? #26a69a :
+                         st == "⏳ نزدیک است" ? color.new(#26a69a, 40) :
+                         st == "⚠️ داغ / صبر" ? color.orange :
+                         st == "🚫 نخر" ? #ef5350 : color.gray
+                    table.cell(tb, 0, row, array.get(nm, k), text_size = size.tiny, text_color = color.white)
+                    table.cell(tb, 1, row, str.tostring(sc, "#"), text_size = size.tiny, text_color = color.white,
+                         bgcolor = color.new(sc >= minScore ? #26a69a : sc >= minScore * 0.85 ? color.orange : color.gray, 65),
+                         tooltip = "نوسان (ATR): " + str.tostring(array.get(atA, k), "#.##") + "%  |  RSI: " + str.tostring(rs, "#"))
+                    table.cell(tb, 2, row, st, text_size = size.tiny, text_color = stc)
+                    float vc = array.get(vcA, k)
+                    table.cell(tb, 3, row, (vc >= 0 ? "+" : "") + str.tostring(vc, "#") + "%", text_size = size.tiny,
+                         text_color = vc > 0 ? #26a69a : #ef5350)
+                    table.cell(tb, 4, row, fmtPx(array.get(pxA, k)), text_size = size.tiny, text_color = color.new(color.white, 15))
+                    table.cell(tb, 5, row, fmtPx(array.get(t1A, k)), text_size = size.tiny, text_color = #26a69a)
+                    table.cell(tb, 6, row, fmtPx(array.get(t2A, k)), text_size = size.tiny, text_color = #26a69a)
+                    table.cell(tb, 7, row, fmtPx(array.get(slA, k)), text_size = size.tiny, text_color = #ef5350)
+                    row += 1
+        fillRow(18, 8)
+        table.cell(tb, 0, 18, planTxt(), text_size = size.tiny, text_color = color.new(color.white, 5),
+             bgcolor = color.new(#2962ff, 80))
+        table.merge_cells(tb, 0, 18, 7, 18)
+        fillRow(19, 8)
+        table.cell(tb, 0, 19, "✍️ " + sigText + "  ·  نگهداری تا " + str.tostring(holdHours) + " ساعت",
+             text_size = size.tiny, text_color = color.new(color.white, 10), bgcolor = color.new(#2962ff, 45))
+        table.merge_cells(tb, 0, 19, 7, 19)
+
+    // ── برچسب موبایل ──
+    if useLbl
+        string txt = "💎 خرید اسپات · " + scTF + "  |  بازار: " + btcTxt + "\n──────────────"
+        int shown = 0
+        for j = 0 to array.size(ord) - 1
+            if shown < 8
+                int    k  = array.get(ord, j)
+                float  sc = array.get(scA, k)
+                float  rs = array.get(rsA, k)
+                string st = stateOf(sc, rs)
+                if sc > 0 and (not onlyBuy or st == "🟢 بخر")
+                    txt := txt + "\n" + str.tostring(sc, "#") + " · " + array.get(nm, k) + "  " + st
+                    if st == "🟢 بخر"
+                        txt := txt + "\n     ورود " + fmtPx(array.get(pxA, k)) +
+                             " → 🎯 " + fmtPx(array.get(t1A, k)) + " / " + fmtPx(array.get(t2A, k)) +
+                             "  🛑 " + fmtPx(array.get(slA, k)) +
+                             "\n     حجم " + (array.get(vcA, k) >= 0 ? "+" : "") +
+                             str.tostring(array.get(vcA, k), "#") + "%  ·  نوسان " +
+                             str.tostring(array.get(atA, k), "#.#") + "%"
+                    shown += 1
+        if shown == 0
+            txt := txt + "\nفعلاً ارز مناسبی برای خرید نیست — صبر کن"
+        if noData > 0
+            txt := txt + "\n" + warnTxt
+        txt := txt + "\n──────────────\n" + planTxt() + "\n✍️ " + sigText
+        label.delete(pnl)
+        pnl := label.new(bar_index, loRef, txt, style = label.style_label_left,
+             color = color.new(#131722, 10), textcolor = color.white, size = size.small,
+             textalign = text.align_left)
+
+// ───────────────────────────── ALERTS ─────────────────────────────────────
+alertcondition(buySig,  "💎 سیگنال خرید اسپات", "Spot buy signal")
+alertcondition(sellSig, "💰 سیگنال فروش",        "Spot sell signal")
+
+if buySig
+    alert("💎 خرید اسپات: " + syminfo.ticker +
+         "\nامتیاز: " + str.tostring(mySc, "#") + "/100  |  بازار: " + btcTxt +
+         "\nورود: " + fmtPx(nz(myPx, close)) +
+         "\n🎯 هدف ۱: " + fmtPx(nz(myTp1)) + "  (سود جزئی بگیر)" +
+         "\n🎯 هدف ۲: " + fmtPx(nz(myTp2)) + "  (کامل بفروش)" +
+         "\n🛑 حد ضرر: " + fmtPx(nz(mySl)) +
+         "\nرشد حجم: " + (nz(myVchg) >= 0 ? "+" : "") + str.tostring(nz(myVchg), "#") +
+         "%  |  نوسان: " + str.tostring(nz(myAtrP), "#.##") + "%" +
+         "\n⌛ حداکثر نگهداری: " + str.tostring(holdHours) + " ساعت" +
+         "\n— " + sigText, alert.freq_once_per_bar_close)
+
+if sellSig
+    alert("💰 فروش " + syminfo.ticker + " — " + exitWhy +
+         "\nقیمت: " + fmtPx(close) +
+         "\nنتیجه: " + (posPnl >= 0 ? "+" : "") + str.tostring(posPnl, "#.##") + "%" +
+         "\nمدت نگهداری: " + str.tostring(posAge) + " ساعت" +
+         "\n— " + sigText, alert.freq_once_per_bar_close)
+
+// هشدار گروهی: هر ارزی از لیست که الان قابل خرید است
+buyMsg(string s, float sc, float px, float tpA, float tpB, float slx, float rs) =>
+    float   scm = nz(sc) * mktMult
+    string  st  = stateOf(scm, nz(rs))
+    scm > 0 and st == "🟢 بخر" ?
+         "💎 " + shortSym(s) + "  امتیاز " + str.tostring(scm, "#") +
+         "  ورود " + fmtPx(px) + " → 🎯 " + fmtPx(tpA) + " / " + fmtPx(tpB) +
+         "  🛑 " + fmtPx(slx) + "\n" : ""
+
+msgAll = buyMsg(sym1, s1, p1, x1, y1, z1, r1) + buyMsg(sym2, s2, p2, x2, y2, z2, r2) +
+         buyMsg(sym3, s3, p3, x3, y3, z3, r3) + buyMsg(sym4, s4, p4, x4, y4, z4, r4) +
+         buyMsg(sym5, s5, p5, x5, y5, z5, r5) + buyMsg(sym6, s6, p6, x6, y6, z6, r6) +
+         buyMsg(sym7, s7, p7, x7, y7, z7, r7) + buyMsg(sym8, s8, p8, x8, y8, z8, r8) +
+         buyMsg(sym9, s9, p9, x9, y9, z9, r9) + buyMsg(sym10, s10, p10, x10, y10, z10, r10) +
+         buyMsg(sym11, s11, p11, x11, y11, z11, r11) + buyMsg(sym12, s12, p12, x12, y12, z12, r12) +
+         buyMsg(sym13, s13, p13, x13, y13, z13, r13) + buyMsg(sym14, s14, p14, x14, y14, z14, r14) +
+         buyMsg(sym15, s15, p15, x15, y15, z15, r15)
+
+if str.length(msgAll) > 0 and barstate.isconfirmed
+    alert("🔎 ارزهای مناسب خرید اسپات (" + scTF + ") | بازار: " + btcTxt + "\n" +
+         msgAll + "⌛ نگهداری تا " + str.tostring(holdHours) + " ساعت\n— " + sigText,
+         alert.freq_once_per_bar_close)
