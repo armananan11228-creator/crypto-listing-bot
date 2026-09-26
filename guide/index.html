@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>راهنمای تصویری: آلرت تریدینگ‌ویو → تلگرام</title>
+<style>
+  :root{
+    --bg:#0b0e14; --card:#131722; --line:#252b38; --tx:#e6edf3; --mu:#8b98ad;
+    --ac:#2962ff; --gr:#26a69a; --rd:#ef5350; --or:#f5a623;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--tx);line-height:2;
+       font-family:system-ui,'Segoe UI',Tahoma,sans-serif;padding:20px 14px 70px}
+  .wrap{max-width:880px;margin:0 auto}
+  header{text-align:center;margin-bottom:26px}
+  h1{font-size:23px;margin:0 0 6px}
+  .sub{color:var(--mu);font-size:14px}
+  .flow{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:18px 0 26px}
+  .flow span{background:var(--card);border:1px solid var(--line);border-radius:10px;
+             padding:7px 13px;font-size:13px}
+  .flow i{color:var(--mu);font-style:normal;align-self:center}
+  .step{background:var(--card);border:1px solid var(--line);border-radius:16px;
+        padding:20px;margin-bottom:18px}
+  .head{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+  .num{background:var(--ac);color:#fff;width:34px;height:34px;border-radius:50%;
+       display:grid;place-items:center;font-weight:700;flex:none}
+  .head h2{font-size:18px;margin:0}
+  .tag{margin-right:auto;font-size:12px;color:var(--mu);background:#1b2030;
+       border-radius:99px;padding:3px 11px}
+  ol,ul{padding-right:20px;margin:10px 0}
+  li{margin-bottom:5px}
+  code{background:#1b2030;color:#7ee2c4;border-radius:6px;padding:2px 7px;
+       direction:ltr;display:inline-block;font-size:13px}
+  pre{background:#0f131c;border:1px solid var(--line);border-radius:10px;padding:13px;
+      overflow-x:auto;direction:ltr;text-align:left;font-size:13px;color:#cfe3ff}
+  .note{border-right:3px solid var(--or);background:#2a220f55;padding:9px 13px;
+        border-radius:8px;font-size:13.5px;margin:12px 0}
+  .ok{border-right-color:var(--gr);background:#0f2a2355}
+  .bad{border-right-color:var(--rd);background:#2a121255}
+  svg{width:100%;height:auto;display:block;margin:14px 0;border-radius:12px;
+      border:1px solid var(--line);background:#0f131c}
+  .cap{text-align:center;color:var(--mu);font-size:12.5px;margin-top:-6px}
+  footer{text-align:center;color:var(--mu);font-size:13px;margin-top:30px}
+  .chk{display:flex;gap:9px;align-items:flex-start;background:#0f131c;border:1px solid var(--line);
+       border-radius:10px;padding:10px 13px;margin-top:12px;font-size:13.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>🔗 راهنمای تصویری: آلرت تریدینگ‌ویو → تلگرام</h1>
+  <div class="sub">اندیکاتور Spot Buy Scanner · طراحی و توسعه توسط آرمان ناصری</div>
+  <div class="flow">
+    <span>📊 تریدینگ‌ویو</span><i>◄</i>
+    <span>🔗 سرور وبهوک</span><i>◄</i>
+    <span>🤖 ربات تلگرام</span><i>◄</i>
+    <span>📱 گوشی تو</span>
+  </div>
+</header>
+
+<!-- ─────────── قدم ۱ ─────────── -->
+<div class="step">
+  <div class="head"><div class="num">۱</div><h2>ساخت ربات تلگرام</h2><span class="tag">۲ دقیقه</span></div>
+  <ol>
+    <li>در تلگرام جست‌وجو کن: <code>@BotFather</code> (تیک آبی دارد)</li>
+    <li>دکمه‌ی <b>Start</b> را بزن</li>
+    <li>بنویس: <code>/newbot</code></li>
+    <li>یک <b>نام</b> بده، مثلاً <code>Arman Signals</code></li>
+    <li>یک <b>یوزرنیم</b> بده که حتماً به <code>bot</code> ختم شود، مثلاً <code>arman_spot_signals_bot</code></li>
+    <li>BotFather یک <b>توکن</b> می‌دهد — کپی و جایی ذخیره‌اش کن</li>
+  </ol>
+
+  <svg viewBox="0 0 660 330" xmlns="http://www.w3.org/2000/svg" font-family="system-ui">
+    <rect width="660" height="330" fill="#0f131c"/>
+    <rect x="20" y="16" width="620" height="44" rx="10" fill="#17212b"/>
+    <circle cx="48" cy="38" r="15" fill="#2aabee"/><text x="48" y="44" font-size="15" text-anchor="middle" fill="#fff">🤖</text>
+    <text x="76" y="34" font-size="15" fill="#fff">BotFather</text>
+    <text x="76" y="52" font-size="11.5" fill="#7d8b99">bot</text>
+
+    <rect x="330" y="80" width="310" height="34" rx="12" fill="#2b5278"/>
+    <text x="620" y="102" font-size="13.5" fill="#fff" text-anchor="end">/newbot</text>
+
+    <rect x="20" y="126" width="420" height="58" rx="12" fill="#182533"/>
+    <text x="36" y="149" font-size="13" fill="#e6edf3">Alright, a new bot. How are we going to call it?</text>
+    <text x="36" y="170" font-size="13" fill="#e6edf3">Please choose a name for your bot.</text>
+
+    <rect x="330" y="196" width="310" height="34" rx="12" fill="#2b5278"/>
+    <text x="620" y="218" font-size="13.5" fill="#fff" text-anchor="end">arman_spot_signals_bot</text>
+
+    <rect x="20" y="242" width="470" height="70" rx="12" fill="#182533"/>
+    <text x="36" y="265" font-size="13" fill="#e6edf3">Done! Use this token to access the HTTP API:</text>
+    <rect x="36" y="275" width="330" height="26" rx="6" fill="#0b1118"/>
+    <text x="46" y="293" font-size="12.5" fill="#7ee2c4">7812345678:AAH9k...Qx7ZmT</text>
+    <text x="380" y="293" font-size="18">📋</text>
+    <text x="404" y="293" font-size="12" fill="#f5a623">← این را کپی کن</text>
+  </svg>
+  <div class="cap">نمونه‌ی گفت‌وگو با BotFather — توکن در پیام آخر است</div>
+
+  <div class="note bad">⚠️ این توکن مثل رمز عبور است. هیچ‌جا منتشرش نکن. اگر لو رفت با <code>/revoke</code> باطلش کن.</div>
+  <div class="chk">✅ <div>نتیجه‌ی این قدم: یک رشته‌ی طولانی شبیه <code>7812345678:AAH9k...</code></div></div>
+</div>
+
+<!-- ─────────── قدم ۲ ─────────── -->
+<div class="step">
+  <div class="head"><div class="num">۲</div><h2>گرفتن آی‌دی عددی چت</h2><span class="tag">۱ دقیقه</span></div>
+  <ol>
+    <li>در تلگرام برو به <code>@userinfobot</code></li>
+    <li><b>Start</b> را بزن — بلافاصله مشخصاتت را می‌فرستد</li>
+    <li>عدد جلوی <code>Id</code> همان <b>CHAT_ID</b> توست</li>
+    <li>حالا به رباتِ خودت (که در قدم ۱ ساختی) برو و یک بار <b>Start</b> بزن
+        <br><span style="color:var(--mu);font-size:13px">اگر این کار را نکنی، ربات اجازه ندارد به تو پیام بدهد</span></li>
+  </ol>
+
+  <svg viewBox="0 0 660 230" xmlns="http://www.w3.org/2000/svg" font-family="system-ui">
+    <rect width="660" height="230" fill="#0f131c"/>
+    <rect x="20" y="16" width="620" height="44" rx="10" fill="#17212b"/>
+    <circle cx="48" cy="38" r="15" fill="#6c5ce7"/><text x="48" y="44" font-size="14" text-anchor="middle" fill="#fff">ℹ️</text>
+    <text x="76" y="44" font-size="15" fill="#fff">userinfobot</text>
+
+    <rect x="430" y="76" width="210" height="34" rx="12" fill="#2b5278"/>
+    <text x="620" y="98" font-size="13.5" fill="#fff" text-anchor="end">/start</text>
+
+    <rect x="20" y="122" width="330" height="92" rx="12" fill="#182533"/>
+    <text x="36" y="146" font-size="13" fill="#e6edf3">@arman_trader</text>
+    <text x="36" y="168" font-size="13" fill="#e6edf3">Id: <tspan fill="#7ee2c4" font-size="15">146372819</tspan></text>
+    <text x="36" y="190" font-size="13" fill="#e6edf3">First: Arman</text>
+    <text x="36" y="207" font-size="11.5" fill="#f5a623">↑ همین عدد = CHAT_ID</text>
+  </svg>
+  <div class="cap">عدد Id را بردار — همین CHAT_ID است</div>
+
+  <div class="chk">✅ <div>نتیجه: یک عدد ۹ تا ۱۰ رقمی مثل <code>146372819</code></div></div>
+</div>
+
+<!-- ─────────── قدم ۳ ─────────── -->
+<div class="step">
+  <div class="head"><div class="num">۳</div><h2>بالا آوردن سرور وبهوک (رایگان)</h2><span class="tag">۵ دقیقه</span></div>
+  <p>سرور باید یک آدرس <b>HTTPS عمومی</b> داشته باشد تا تریدینگ‌ویو بتواند به آن وصل شود. ساده‌ترین راه رایگان: <b>Render</b>.</p>
+  <ol>
+    <li>در <code>render.com</code> ثبت‌نام کن (با همان اکانت GitHub)</li>
+    <li><b>New +</b> → <b>Web Service</b></li>
+    <li>ریپوی <code>crypto-listing-bot</code> را انتخاب کن</li>
+    <li>برنچ را بگذار: <code>arena/01a0dd40-crypto-listing-bot</code></li>
+    <li>تنظیمات:
+      <ul>
+        <li>Build Command: <code>pip install -r requirements.txt</code></li>
+        <li>Start Command: <code>gunicorn -w 2 -b 0.0.0.0:$PORT webhook_server:app</code></li>
+        <li>Instance Type: <b>Free</b></li>
+      </ul>
+    </li>
+    <li>در بخش <b>Environment Variables</b> سه متغیر اضافه کن:</li>
+  </ol>
+
+  <svg viewBox="0 0 660 250" xmlns="http://www.w3.org/2000/svg" font-family="system-ui">
+    <rect width="660" height="250" fill="#0f131c"/>
+    <text x="640" y="34" font-size="15" fill="#e6edf3" text-anchor="end">Environment Variables</text>
+    <line x1="20" y1="46" x2="640" y2="46" stroke="#252b38"/>
+
+    <rect x="20" y="60" width="300" height="34" rx="8" fill="#1b2030"/>
+    <text x="34" y="82" font-size="13" fill="#8b98ad">Key</text>
+    <text x="310" y="82" font-size="13.5" fill="#7ee2c4" text-anchor="end">BOT_TOKEN</text>
+    <rect x="340" y="60" width="300" height="34" rx="8" fill="#1b2030"/>
+    <text x="630" y="82" font-size="12.5" fill="#cfe3ff" text-anchor="end">7812345678:AAH9k...</text>
+
+    <rect x="20" y="106" width="300" height="34" rx="8" fill="#1b2030"/>
+    <text x="34" y="128" font-size="13" fill="#8b98ad">Key</text>
+    <text x="310" y="128" font-size="13.5" fill="#7ee2c4" text-anchor="end">CHAT_ID</text>
+    <rect x="340" y="106" width="300" height="34" rx="8" fill="#1b2030"/>
+    <text x="630" y="128" font-size="12.5" fill="#cfe3ff" text-anchor="end">146372819</text>
+
+    <rect x="20" y="152" width="300" height="34" rx="8" fill="#1b2030"/>
+    <text x="34" y="174" font-size="13" fill="#8b98ad">Key</text>
+    <text x="310" y="174" font-size="13.5" fill="#7ee2c4" text-anchor="end">WEBHOOK_SECRET</text>
+    <rect x="340" y="152" width="300" height="34" rx="8" fill="#1b2030"/>
+    <text x="630" y="174" font-size="12.5" fill="#cfe3ff" text-anchor="end">arman-9f31c2</text>
+
+    <rect x="470" y="200" width="170" height="36" rx="9" fill="#2962ff"/>
+    <text x="555" y="224" font-size="14" fill="#fff" text-anchor="middle">Create Web Service</text>
+  </svg>
+  <div class="cap">سه متغیر محیطی؛ WEBHOOK_SECRET را خودت یک رشته‌ی تصادفی بگذار</div>
+
+  <div class="note">🌐 بعد از دیپلوی، Render یک آدرس می‌دهد مثل:
+    <code>https://crypto-listing-bot.onrender.com</code></div>
+  <p>برای تست، این آدرس را در مرورگر باز کن؛ باید صفحه‌ی وضعیت سبز با پیام «✅ متصل» ببینی.</p>
+  <div class="chk">✅ <div>نتیجه: آدرس وبهوک تو →
+    <code>https://&lt;آدرس-تو&gt;/tradingview/&lt;رمز&gt;</code></div></div>
+</div>
+
+<!-- ─────────── قدم ۴ ─────────── -->
+<div class="step">
+  <div class="head"><div class="num">۴</div><h2>ساخت آلرت در تریدینگ‌ویو</h2><span class="tag">۲ دقیقه</span></div>
+  <ol>
+    <li>اندیکاتور <b>Spot Buy Scanner</b> را روی چارت اضافه کن</li>
+    <li>روی چارت راست‌کلیک → <b>Add alert</b> (در موبایل: آیکن ⏰)</li>
+    <li>در کشوی <b>Condition</b>، اندیکاتور را انتخاب کن</li>
+    <li>در کشوی دوم حتماً بزن: <b>Any alert() function call</b>
+        <br><span style="color:var(--mu);font-size:13px">این گزینه هر ۱۵ ارز را با یک آلرت پوشش می‌دهد</span></li>
+    <li>Trigger: <b>Once Per Bar Close</b></li>
+    <li>تب <b>Notifications</b> → تیک <b>Webhook URL</b> و آدرس را بچسبان</li>
+  </ol>
+
+  <svg viewBox="0 0 660 400" xmlns="http://www.w3.org/2000/svg" font-family="system-ui">
+    <rect width="660" height="400" fill="#0f131c"/>
+    <rect x="18" y="14" width="624" height="372" rx="14" fill="#131722" stroke="#252b38"/>
+    <text x="624" y="46" font-size="16" fill="#e6edf3" text-anchor="end">ساخت آلرت</text>
+    <line x1="18" y1="60" x2="642" y2="60" stroke="#252b38"/>
+
+    <text x="624" y="88" font-size="12.5" fill="#8b98ad" text-anchor="end">Condition</text>
+    <rect x="40" y="96" width="584" height="38" rx="9" fill="#1b2030" stroke="#2f3646"/>
+    <text x="608" y="120" font-size="13.5" fill="#e6edf3" text-anchor="end">Spot Buy Scanner [Arman Naseri]</text>
+    <text x="60" y="120" font-size="12" fill="#8b98ad">▾</text>
+
+    <rect x="40" y="144" width="584" height="38" rx="9" fill="#1b2030" stroke="#26a69a"/>
+    <text x="608" y="168" font-size="13.5" fill="#26a69a" text-anchor="end">Any alert() function call</text>
+    <text x="60" y="168" font-size="12" fill="#8b98ad">▾</text>
+    <text x="608" y="196" font-size="11.5" fill="#f5a623" text-anchor="end">↑ حتماً همین گزینه</text>
+
+    <text x="624" y="228" font-size="12.5" fill="#8b98ad" text-anchor="end">Trigger</text>
+    <rect x="40" y="236" width="584" height="38" rx="9" fill="#1b2030" stroke="#2f3646"/>
+    <text x="608" y="260" font-size="13.5" fill="#e6edf3" text-anchor="end">Once Per Bar Close</text>
+
+    <text x="624" y="296" font-size="12.5" fill="#8b98ad" text-anchor="end">Notifications</text>
+    <rect x="596" y="306" width="18" height="18" rx="4" fill="#2962ff"/>
+    <text x="605" y="320" font-size="13" fill="#fff" text-anchor="middle">✓</text>
+    <text x="586" y="321" font-size="13.5" fill="#e6edf3" text-anchor="end">Webhook URL</text>
+    <rect x="40" y="332" width="584" height="34" rx="8" fill="#0b1118" stroke="#2f3646"/>
+    <text x="52" y="354" font-size="12" fill="#7ee2c4">https://crypto-listing-bot.onrender.com/tradingview/arman-9f31c2</text>
+  </svg>
+  <div class="cap">پنجره‌ی Add alert — سه جای حیاتی علامت زده شده</div>
+
+  <div class="note bad">⚠️ وبهوک از پلن <b>Essential</b> به بالا فعال است. روی پلن رایگان گزینه‌ی Webhook URL خاکستری می‌ماند.</div>
+</div>
+
+<!-- ─────────── قدم ۵ ─────────── -->
+<div class="step">
+  <div class="head"><div class="num">۵</div><h2>تست و دریافت پیام</h2><span class="tag">۱ دقیقه</span></div>
+  <p>قبل از انتظار برای سیگنال واقعی، یک پیام آزمایشی بفرست:</p>
+  <pre>curl -X POST https://&lt;آدرس-تو&gt;/test</pre>
+  <p>باید بلافاصله در تلگرام چنین پیامی بیاید:</p>
+
+  <svg viewBox="0 0 660 300" xmlns="http://www.w3.org/2000/svg" font-family="system-ui">
+    <rect width="660" height="300" fill="#0f131c"/>
+    <rect x="18" y="14" width="624" height="40" rx="10" fill="#17212b"/>
+    <circle cx="46" cy="34" r="14" fill="#26a69a"/><text x="46" y="40" font-size="13" text-anchor="middle" fill="#fff">💎</text>
+    <text x="72" y="40" font-size="14.5" fill="#fff">Arman Signals</text>
+
+    <rect x="18" y="66" width="470" height="218" rx="14" fill="#182533"/>
+    <text x="38" y="94" font-size="14.5" fill="#fff" font-weight="700">💎 سیگنال خرید اسپات</text>
+    <line x1="38" y1="104" x2="466" y2="104" stroke="#2a3a4a"/>
+    <rect x="38" y="114" width="430" height="128" rx="8" fill="#0f1620"/>
+    <text x="52" y="136" font-size="12.5" fill="#cfe3ff">💎 خرید اسپات: SUIUSDT</text>
+    <text x="52" y="156" font-size="12.5" fill="#cfe3ff">امتیاز: 78/100  |  بازار: 🟢 سالم</text>
+    <text x="52" y="176" font-size="12.5" fill="#cfe3ff">ورود: 3.4120</text>
+    <text x="52" y="196" font-size="12.5" fill="#7ee2c4">🎯 هدف ۱: 3.5280      🎯 هدف ۲: 3.7010</text>
+    <text x="52" y="216" font-size="12.5" fill="#ff8a80">🛑 حد ضرر: 3.2880</text>
+    <text x="52" y="234" font-size="12.5" fill="#cfe3ff">⌛ حداکثر نگهداری: 12 ساعت</text>
+    <text x="456" y="266" font-size="11.5" fill="#7d8b99" text-anchor="end">🕒 ۲۱:۴۵ (تهران)   ✓✓</text>
+  </svg>
+  <div class="cap">شکل نهایی پیام در تلگرام</div>
+
+  <div class="note ok">✅ اگر این پیام رسید، همه‌چیز درست است. از این به بعد هر سیگنال خرید یا فروش خودکار می‌آید.</div>
+
+  <p><b>اگر پیام نیامد:</b></p>
+  <ul>
+    <li>آدرس <code>/health</code> را باز کن — اگر <code>configured: false</code> بود، یعنی توکن یا چت‌آی‌دی ست نشده</li>
+    <li>مطمئن شو یک بار به ربات خودت <b>Start</b> زده‌ای</li>
+    <li>رمز انتهای آدرس دقیقاً برابر <code>WEBHOOK_SECRET</code> باشد</li>
+    <li>در صفحه‌ی اصلی سرور، تاریخچه‌ی ۳۰ آلرت آخر و دلیل رد شدنشان را می‌بینی</li>
+  </ul>
+</div>
+
+<footer>✍️ طراحی و توسعه توسط آرمان ناصری</footer>
+</div>
+</body>
+</html>
