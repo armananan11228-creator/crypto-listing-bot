@@ -154,6 +154,13 @@ const TA = (() => {
       tp1: price + a * cfg.tp1,
       tp2: price + a * cfg.tp2,
       sl: Math.min(price - a * cfg.sl, lo10 * 0.998),
+      det: {
+        aboveE50: price > e50, e50Above200: e50 > e200, aboveE200: price > e200,
+        macdPos: m.hist > 0, macdRising: m.hist > m.prev,
+        hh10, lo10, lo20, hi20, vRat,
+        breakout: price > hh10, higherLow: lo10 > lo20,
+        distE20: (price / e20 - 1) * 100,
+      },
       factors: [
         { n: 'روند', v: trend, w: 2 },
         { n: 'مومنتوم', v: momo, w: 1.5 },

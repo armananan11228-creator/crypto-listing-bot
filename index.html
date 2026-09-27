@@ -174,6 +174,23 @@ footer{text-align:center;color:var(--mu);font-size:12px;padding:26px 16px;line-h
   font-size:11px;color:var(--mu)}
 .chart-legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-left:4px}
 
+/* ── سیگنال فعال و توضیحات ── */
+.sechead{grid-column:1/-1;font-size:14px;color:var(--mu);margin:6px 2px 0;font-weight:600}
+.sigcard{border-color:#2c6b46;background:linear-gradient(180deg,#132318,var(--card) 60%)}
+.ribbon{position:absolute;top:0;left:0;background:var(--gr);color:#04140a;font-size:10.5px;
+  font-weight:700;padding:2px 10px;border-radius:0 0 10px 0}
+.why{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px;margin:12px 0}
+.why h3{font-size:15px;margin-bottom:6px}
+.why h4{font-size:13px;margin:11px 0 5px;color:var(--or)}
+.verdict{font-size:13px;color:#cfe0ff;background:rgba(59,130,246,.1);border-radius:9px;
+  padding:9px 11px;margin:0 0 10px}
+.rz{display:flex;flex-direction:column;gap:1px;padding:7px 10px;border-radius:9px;margin-bottom:6px;
+  font-size:12.5px;border-right:3px solid}
+.rz b{font-size:13px}
+.rz span{color:var(--mu);line-height:1.7}
+.rz.ok{background:rgba(34,197,94,.07);border-color:var(--gr)}
+.rz.no{background:rgba(239,68,68,.07);border-color:var(--rd)}
+
 </style>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💎</text></svg>">
 </head>
@@ -451,6 +468,13 @@ const TA = (() => {
       tp1: price + a * cfg.tp1,
       tp2: price + a * cfg.tp2,
       sl: Math.min(price - a * cfg.sl, lo10 * 0.998),
+      det: {
+        aboveE50: price > e50, e50Above200: e50 > e200, aboveE200: price > e200,
+        macdPos: m.hist > 0, macdRising: m.hist > m.prev,
+        hh10, lo10, lo20, hi20, vRat,
+        breakout: price > hh10, higherLow: lo10 > lo20,
+        distE20: (price / e20 - 1) * 100,
+      },
       factors: [
         { n: 'روند', v: trend, w: 2 },
         { n: 'مومنتوم', v: momo, w: 1.5 },
@@ -594,6 +618,8 @@ let CFG = { ...DEFAULTS, ...load('cfg', {}) };
 let positions = load('positions', []);
 let history = load('history', []);
 let scanRows = [];
+let signals = load('signals', {});
+let signalLog = load('signalLog', []);
 let market = { ok: true, txt: '—', mult: 1, price: 0 };
 let demo = false;
 let filter = 'buy';
@@ -695,6 +721,7 @@ async function scan() {
     rows.sort((a, b) => b.score - a.score);
     scanRows = rows;
     lastScan = Date.now();
+    updateSignals(rows);
     renderScan();
     renderHeader();
     evaluatePositions();
@@ -722,6 +749,143 @@ function setProgress(d, n, txt) {
   $('#progressTxt').textContent = txt;
 }
 
+/* ═══════ حافظه‌ی سیگنال — اسکنر پای حرفش می‌ماند ═══════
+   وقتی ارزی سیگنال خرید گرفت، تا وقتی یکی از این اتفاق‌ها نیفتد معتبر می‌ماند:
+   🎯 هدف دوم بخورد · 🛑 حد ضرر بخورد · ⌛ زمان اعتبار تمام شود ·
+   ⚠️ امتیاز دو اسکن پشت‌سرهم خیلی افت کند                                 */
+function updateSignals(rows) {
+  const now = Date.now();
+  const byS = Object.fromEntries(rows.map(r => [r.symbol, r]));
+
+  for (const r of rows) {
+    const sg = signals[r.symbol];
+    if (!sg) {
+      if (r.state.t === '🟢 بخر') {
+        signals[r.symbol] = {
+          symbol: r.symbol, at: now, entry: r.price, tp1: r.tp1, tp2: r.tp2,
+          sl: r.sl, score0: r.score, score: r.score, now: r.price,
+          weak: 0, tp1Hit: false, tf: CFG.tf,
+        };
+      }
+      continue;
+    }
+    sg.now = r.price; sg.score = r.score;
+    if (r.price >= sg.tp1) sg.tp1Hit = true;
+
+    let end = null;
+    if (r.price <= sg.sl) end = '🛑 حد ضرر خورد';
+    else if (r.price >= sg.tp2) end = '🎯 هدف دوم زده شد';
+    else if ((now - sg.at) / 36e5 >= CFG.hold) end = '⌛ زمان اعتبار تمام شد';
+    else {
+      sg.weak = r.score < CFG.minScore - 15 ? sg.weak + 1 : 0;
+      if (sg.weak >= 2) end = '⚠️ شرایط ضعیف شد';
+    }
+    if (end) closeSignal(r.symbol, end);
+  }
+
+  // ارزهایی که از لیست ۱۰۰تای برتر بیرون رفته‌اند
+  for (const sym of Object.keys(signals))
+    if (!byS[sym] && (now - signals[sym].at) / 36e5 >= CFG.hold)
+      closeSignal(sym, '⌛ زمان اعتبار تمام شد');
+
+  save('signals', signals);
+}
+
+function closeSignal(sym, reason) {
+  const sg = signals[sym];
+  if (!sg) return;
+  const res = (sg.now / sg.entry - 1) * 100;
+  signalLog.unshift({ ...sg, closedAt: Date.now(), reason, result: res });
+  signalLog = signalLog.slice(0, 60);
+  delete signals[sym];
+  save('signals', signals); save('signalLog', signalLog);
+  if (/هدف/.test(reason)) alarm('🎯 سیگنال به هدف رسید', `${sym.replace('USDT','')} · ${pct(res)}`);
+}
+
+function signalCard(sg) {
+  const chg = (sg.now / sg.entry - 1) * 100;
+  const age = hoursSince(sg.at);
+  const left = Math.max(0, CFG.hold - age);
+  const prog = TA.clamp((sg.now - sg.sl) / (sg.tp2 - sg.sl) * 100, 0, 100);
+  return `<article class="card coin sigcard" data-sym="${sg.symbol}">
+    <div class="ribbon">📌 سیگنال فعال</div>
+    <div class="top">
+      <div><div class="sym">${sg.symbol.replace('USDT','')}</div>
+        <div class="pair">${age < 1 ? Math.round(age*60)+' دقیقه' : age.toFixed(1)+' ساعت'} پیش · ${sg.tf}</div></div>
+      <div class="score ${chg >= 0 ? 's-hi' : 's-lo'}">${pct(chg)}</div>
+    </div>
+    <div class="track"><i style="width:${prog}%"></i></div>
+    <div class="ticks"><span>🛑 ${fmt(sg.sl)}</span><span>${fmt(sg.now)}</span><span>🎯 ${fmt(sg.tp2)}</span></div>
+    <div class="kv"><span>قیمت سیگنال</span><b>${fmt(sg.entry)}</b></div>
+    <div class="kv"><span>هدف ۱ ${sg.tp1Hit ? '✅ خورد' : ''}</span><b class="up">${fmt(sg.tp1)}</b></div>
+    <div class="kv"><span>امتیاز الان</span><b>${sg.score.toFixed(0)} (شروع ${sg.score0.toFixed(0)})</b></div>
+    <div class="kv"><span>اعتبار باقی‌مانده</span><b>${left.toFixed(1)} ساعت</b></div>
+  </article>`;
+}
+
+/* ═══════ توضیح: چرا این ارز؟ ═══════ */
+function reasons(r) {
+  const d = r.det, pros = [], cons = [];
+
+  if (d.aboveE50 && d.e50Above200)
+    pros.push(['📈', 'روند صعودی کامل', 'قیمت بالای EMA50 است و EMA50 بالای EMA200 — هر سه ساختار روند هم‌جهت‌اند.']);
+  else if (d.aboveE50)
+    pros.push(['📈', 'روند کوتاه‌مدت مثبت', 'قیمت بالای EMA50 است، ولی روند بلندمدت هنوز کامل تأیید نشده.']);
+  else
+    cons.push(['📉', 'زیر میانگین‌ها', 'قیمت زیر EMA50 است؛ خرید در روند نزولی ریسک بالایی دارد.']);
+
+  if (d.macdPos && d.macdRising)
+    pros.push(['⚡', 'مومنتوم در حال تقویت', 'هیستوگرام MACD مثبت است و دارد بزرگ‌تر می‌شود — قدرت خریدار زیاد می‌شود.']);
+  else if (d.macdRising)
+    pros.push(['⚡', 'مومنتوم در حال برگشت', 'MACD هنوز منفی است ولی دارد بهبود می‌یابد.']);
+  else
+    cons.push(['⚡', 'مومنتوم ضعیف', 'MACD در حال تضعیف است؛ فشار خرید کم شده.']);
+
+  if (r.volChg >= 10 && r.volChg <= 110)
+    pros.push(['🔊', `حجم ${r.volChg.toFixed(0)}٪ بیشتر شده`, 'پول تازه وارد شده ولی هنوز منفجر نشده — یعنی ابتدای حرکت هستیم.']);
+  else if (r.volChg > 110)
+    cons.push(['🔊', `حجم ${r.volChg.toFixed(0)}٪ ترکیده`, 'احتمالاً موج اصلی شروع شده و دیر رسیده‌ایم.']);
+  else
+    cons.push(['🔊', 'حجم رشد نکرده', 'بدون حجم، حرکت قیمت دوام نمی‌آورد.']);
+
+  if (r.rsi >= 45 && r.rsi <= 63)
+    pros.push(['🎚', `RSI ${r.rsi.toFixed(0)} — ناحیه سالم`, 'نه اشباع خرید است نه مرده؛ جا برای رشد دارد.']);
+  else if (r.rsi > 70)
+    cons.push(['🎚', `RSI ${r.rsi.toFixed(0)} — اشباع خرید`, 'احتمال اصلاح کوتاه‌مدت بالاست.']);
+  else if (r.rsi < 38)
+    cons.push(['🎚', `RSI ${r.rsi.toFixed(0)} — خیلی ضعیف`, 'هنوز نشانه‌ای از برگشت خریدار نیست.']);
+
+  if (r.pos >= 30 && r.pos <= 72)
+    pros.push(['🎯', 'در ناحیه ارزش', `قیمت در ${r.pos.toFixed(0)}٪ محدوده ۲۰ کندل اخیر است — نه روی سقف خریدی، نه در حال سقوط.`]);
+  else if (r.pos > 88)
+    cons.push(['🎯', 'چسبیده به سقف', 'ورود در سقف یعنی حد ضرر دور و ریسک زیاد.']);
+
+  if (r.adx >= 22)
+    pros.push(['💪', `قدرت روند ${r.adx.toFixed(0)}`, 'روند جان دارد و احتمال ادامه‌اش بیشتر است.']);
+  else
+    cons.push(['💪', `قدرت روند فقط ${r.adx.toFixed(0)}`, 'بازار بی‌رمق است؛ حرکت ممکن است کش‌دار شود.']);
+
+  if (d.breakout) pros.push(['🚀', 'شکست سقف ۱۰ کندل', 'قیمت از آخرین مقاومت کوتاه‌مدت رد شده.']);
+  if (d.higherLow) pros.push(['🪜', 'کف‌های بالاتر', 'خریداران در هر اصلاح زودتر وارد می‌شوند.']);
+
+  if (r.atrPct > 5) cons.push(['🌪', `نوسان ${r.atrPct.toFixed(1)}٪`, 'خیلی پرنوسان است؛ حجم معامله را کم کن.']);
+  else if (r.atrPct < 0.4) cons.push(['😴', 'نوسان خیلی کم', 'ممکن است حرکت معناداری نکند.']);
+
+  if (!market.ok) cons.push(['🌍', 'بازار کلی ضعیف', 'بیت‌کوین شرایط خوبی ندارد و آلت‌ها معمولاً دنبالش می‌روند.']);
+
+  let verdict;
+  if (r.state.t === '🟢 بخر')
+    verdict = `مجموع ${pros.length} عامل مثبت در برابر ${cons.length} هشدار — شرایط برای خرید و نگهداری چندساعته مناسب است. برنامه‌ی خروج پایین را حتماً رعایت کن.`;
+  else if (/نزدیک/.test(r.state.t))
+    verdict = 'هنوز کامل نیست؛ یکی دو عامل کم دارد. زیر نظر بگیر و اگر امتیازش بالا رفت وارد شو.';
+  else if (/داغ/.test(r.state.t))
+    verdict = 'شرایط تکنیکال خوب است ولی دیر رسیده‌ای — منتظر یک اصلاح کوچک بمان.';
+  else
+    verdict = 'الان دلیل کافی برای خرید وجود ندارد. صبر هم یک معامله است.';
+
+  return { pros, cons, verdict };
+}
+
 /* ─────────── نمایش اسکنر ─────────── */
 function renderScan() {
   const g = $('#grid');
@@ -729,11 +893,20 @@ function renderScan() {
   if (filter === 'buy') rows = rows.filter(r => r.state.t === '🟢 بخر');
   else if (filter === 'near') rows = rows.filter(r => /بخر|نزدیک|داغ/.test(r.state.t));
 
-  $('#empty').hidden = rows.length > 0;
-  if (!rows.length && scanRows.length)
-    $('#empty').textContent = 'الان هیچ ارزی شرایط خرید ندارد — صبر بهترین معامله است ☕';
+  const active = Object.values(signals).sort((a, b) => b.at - a.at);
+  const activeSyms = new Set(active.map(a => a.symbol));
+  rows = rows.filter(r => !activeSyms.has(r.symbol));
 
-  g.innerHTML = rows.slice(0, 60).map(r => {
+  $('#empty').hidden = rows.length + active.length > 0;
+  if (!rows.length && scanRows.length)
+    $('#empty').textContent = 'الان هیچ ارز جدیدی شرایط خرید ندارد — صبر بهترین معامله است ☕';
+
+  const head = active.length
+    ? `<h3 class="sechead">📌 سیگنال‌های فعال (${active.length}) — تا زمان هدف یا حد ضرر معتبرند</h3>`
+    : '';
+  const tail = rows.length && active.length ? `<h3 class="sechead">🆕 موارد جدید</h3>` : '';
+
+  g.innerHTML = head + active.map(signalCard).join('') + tail + rows.slice(0, 60).map(r => {
     const cls = r.score >= CFG.minScore ? 's-hi' : r.score >= CFG.minScore * .85 ? 's-md' : 's-lo';
     const has = positions.find(p => p.symbol === r.symbol);
     return `<article class="card coin" data-sym="${r.symbol}">
@@ -790,6 +963,7 @@ function openDrawer(sym) {
   const has = positions.find(p => p.symbol === sym);
 
   drawerSym = sym;
+  const R = reasons(r);
   $('#drBody').innerHTML = `
     <div class="chartbox">
       <div class="chart-top">
@@ -812,6 +986,14 @@ function openDrawer(sym) {
       <div class="f"><span>${f.n}</span>
         <div class="fb"><i style="width:${(f.v * 100).toFixed(0)}%"></i></div>
         <b>${(f.v * f.w * 10).toFixed(0)}</b></div>`).join('')}
+    </div>
+
+    <div class="why">
+      <h3>🧭 چرا این ارز؟</h3>
+      <p class="verdict">${R.verdict}</p>
+      ${R.pros.map(([i, t, d]) => `<div class="rz ok"><b>${i} ${t}</b><span>${d}</span></div>`).join('')}
+      ${R.cons.length ? `<h4>⚠️ نکات منفی</h4>` : ''}
+      ${R.cons.map(([i, t, d]) => `<div class="rz no"><b>${i} ${t}</b><span>${d}</span></div>`).join('')}
     </div>
 
     <div class="plan">
@@ -1023,7 +1205,7 @@ function renderPositions() {
 }
 
 function renderHistory() {
-  $('#histEmpty').hidden = history.length > 0;
+  $('#histEmpty').hidden = history.length + signalLog.length > 0;
   const total = history.reduce((s, h) => s + h.pnl, 0);
   const wins = history.filter(h => h.pnl > 0).length;
   $('#histSummary').innerHTML = history.length ? `
@@ -1031,13 +1213,24 @@ function renderHistory() {
     <div><span class="muted">معامله‌ها</span><b>${history.length}</b></div>
     <div><span class="muted">برد</span><b>${(wins / history.length * 100).toFixed(0)}%</b></div>` : '';
 
-  $('#histList').innerHTML = history.slice(0, 60).map(h => `
+  const sigHtml = signalLog.length ? `
+    <h3 class="sechead">📡 سیگنال‌های بسته‌شده (بدون خرید واقعی)</h3>` +
+    signalLog.slice(0, 40).map(s => `
+      <div class="row-h">
+        <b style="min-width:62px">${s.symbol.replace('USDT', '')}</b>
+        <span class="muted" style="font-size:12px">${fmt(s.entry)} → ${fmt(s.now)}</span>
+        <span class="muted" style="font-size:12px">${s.reason}</span>
+        <span class="pnl ${s.result >= 0 ? 'up' : 'dn'}">${pct(s.result)}</span>
+      </div>`).join('') : '';
+
+  $('#histList').innerHTML = (history.length ? '<h3 class="sechead">💼 معامله‌های واقعی</h3>' : '') +
+    history.slice(0, 60).map(h => `
     <div class="row-h">
       <b style="min-width:62px">${h.symbol.replace('USDT', '')}</b>
       <span class="muted" style="font-size:12px">${fmt(h.entry)} → ${fmt(h.exit)}</span>
       <span class="muted" style="font-size:12px">${h.reason}</span>
       <span class="pnl ${h.pnl >= 0 ? 'up' : 'dn'}">${money(h.pnl)} · ${pct(h.pnlPct)}</span>
-    </div>`).join('');
+    </div>`).join('') + sigHtml;
 }
 
 /* ─────────── قیمت لحظه‌ای + هشدار فروش ─────────── */
@@ -1151,7 +1344,7 @@ function bindSettings() {
     rd.readAsText(f);
   };
   $('#resetBtn').onclick = () => {
-    if (!confirm('همه معامله‌ها و تاریخچه پاک شود؟')) return;
+    if (!confirm('همه معامله‌ها، سیگنال‌ها و تاریخچه پاک شود؟')) return;
     localStorage.clear(); location.reload();
   };
 }
