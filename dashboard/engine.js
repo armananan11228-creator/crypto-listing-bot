@@ -204,5 +204,70 @@ const TA = (() => {
     return out;
   }
 
-  return { sma, ema, rsi, macd, atr, adx, analyze, btcHealth, stateOf, demoKlines, clamp };
+
+  /* ─────────── HARSI — Heikin-Ashi RSI ───────────
+     RSI روی open/high/low/close حساب و بعد با روش هایکن‌اشی صاف می‌شود.
+     مقادیر حول صفر نوسان می‌کنند: صفر = RSI 50 ، +20 = RSI 70 ، −20 = RSI 30 */
+  function rsiSeries(v, n = 14) {
+    const out = new Array(v.length).fill(null);
+    if (v.length < n + 1) return out;
+    const g = [], l = [];
+    for (let i = 1; i < v.length; i++) {
+      const d = v[i] - v[i - 1];
+      g.push(Math.max(d, 0)); l.push(Math.max(-d, 0));
+    }
+    const ag = rmaSeries(g, n), al = rmaSeries(l, n);
+    for (let i = 0; i < ag.length; i++) {
+      const A = ag[i], L = al[i];
+      out[i + n] = L === 0 ? 100 : 100 - 100 / (1 + A / L);
+    }
+    return out;
+  }
+
+  function harsi(k, len = 14, smooth = 1) {
+    const c = k.map(x => x.close), h = k.map(x => x.high),
+          l = k.map(x => x.low), t = k.map(x => x.time);
+    const zc = rsiSeries(c, len).map(x => x == null ? null : x - 50);
+    const zh = rsiSeries(h, len).map(x => x == null ? null : x - 50);
+    const zl = rsiSeries(l, len).map(x => x == null ? null : x - 50);
+
+    const out = [];
+    let pO = null, pC = null;
+    for (let i = 1; i < zc.length; i++) {
+      if (zc[i] == null || zh[i] == null || zl[i] == null) continue;
+      const closeRSI = zc[i];
+      const openRSI = zc[i - 1] == null ? closeRSI : zc[i - 1];
+      const hiR = Math.max(zh[i], zl[i]), loR = Math.min(zh[i], zl[i]);
+      const cc = (openRSI + hiR + loR + closeRSI) / 4;
+      const oo = pO == null ? (openRSI + closeRSI) / 2 : (pO + pC) / 2;
+      out.push({
+        time: t[i], o: oo, c: cc,
+        h: Math.max(hiR, oo, cc), l: Math.min(loR, oo, cc),
+        rsi: closeRSI,
+      });
+      pO = oo; pC = cc;
+    }
+    if (smooth > 1) {
+      for (const key of ['o', 'h', 'l', 'c']) {
+        const src = out.map(x => x[key]);
+        const sm = emaSeries(src, smooth);
+        const off = out.length - sm.length;
+        sm.forEach((v, i) => out[i + off][key] = v);
+      }
+    }
+    return out;
+  }
+
+  function harsiState(last) {
+    if (!last) return { t: '—', c: 'mu' };
+    if (last.c >= 20) return { t: '🔥 اشباع خرید', c: 'wa' };
+    if (last.c >= 8) return { t: '🟢 قدرت خریدار', c: 'up' };
+    if (last.c > 0) return { t: '🔵 کمی مثبت', c: 'up' };
+    if (last.c <= -20) return { t: '🧊 اشباع فروش', c: 'wa' };
+    if (last.c <= -8) return { t: '🔴 قدرت فروشنده', c: 'dn' };
+    return { t: '⚪ خنثی', c: 'mu' };
+  }
+
+  return { sma, ema, rsi, macd, atr, adx, analyze, btcHealth, stateOf, demoKlines, clamp,
+           rsiSeries, harsi, harsiState };
 })();

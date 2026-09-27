@@ -152,3 +152,17 @@ footer{text-align:center;color:var(--mu);font-size:12px;padding:26px 16px;line-h
   .controls{gap:8px}
   .slider{flex:1}
 }
+
+/* ── نمودار HARSI ── */
+.chartbox{background:var(--card);border:1px solid var(--line);border-radius:14px;
+  padding:11px;margin-bottom:12px}
+.chart-top{display:flex;justify-content:space-between;align-items:center;font-size:13.5px;
+  margin-bottom:8px}
+.seg.tfchart{margin-bottom:9px;width:100%}
+.seg.tfchart button{flex:1;padding:6px 0;font-size:12px;direction:ltr}
+.harsi{width:100%;height:170px;display:block;background:#0a0e16;border-radius:10px}
+.chart-load{height:170px;display:grid;place-items:center;color:var(--mu);font-size:13px;
+  background:#0a0e16;border-radius:10px}
+.chart-legend{display:flex;gap:12px;justify-content:center;margin-top:8px;
+  font-size:11px;color:var(--mu)}
+.chart-legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-left:4px}

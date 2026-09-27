@@ -26,6 +26,8 @@ let demo = false;
 let filter = 'buy';
 let scanning = false;
 let lastScan = 0;
+let drawerSym = null, chartTf = load('chartTf', '1h');
+const chartCache = {};
 
 function load(k, d) { try { return JSON.parse(localStorage.getItem('at_' + k)) ?? d; } catch { return d; } }
 function save(k, v) { localStorage.setItem('at_' + k, JSON.stringify(v)); }
@@ -214,7 +216,24 @@ function openDrawer(sym) {
         slp = (r.sl / r.price - 1) * 100;
   const has = positions.find(p => p.symbol === sym);
 
+  drawerSym = sym;
   $('#drBody').innerHTML = `
+    <div class="chartbox">
+      <div class="chart-top">
+        <b>نمودار HARSI</b>
+        <span class="muted" id="harsiState">…</span>
+      </div>
+      <div class="seg tfchart" id="chartTf">
+        ${['5m','15m','1h','4h','1d'].map(t =>
+          `<button data-ctf="${t}" class="${t === chartTf ? 'on' : ''}">${t}</button>`).join('')}
+      </div>
+      <div id="harsiBox" class="chart-load">در حال بارگذاری نمودار…</div>
+      <div class="chart-legend">
+        <span><i style="background:#22c55e"></i> کندل صعودی</span>
+        <span><i style="background:#ef4444"></i> کندل نزولی</span>
+        <span><i style="background:#60a5fa"></i> خط RSI</span>
+      </div>
+    </div>
     ${spark(r.closes)}
     <div class="factors">${r.factors.map(f => `
       <div class="f"><span>${f.n}</span>
@@ -253,10 +272,81 @@ function openDrawer(sym) {
       switchTab('pos');
     };
   }
+  $$('#chartTf button').forEach(b => b.onclick = () => {
+    chartTf = b.dataset.ctf; save('chartTf', chartTf);
+    $$('#chartTf button').forEach(x => x.classList.toggle('on', x.dataset.ctf === chartTf));
+    loadChart(sym, chartTf);
+  });
+  loadChart(sym, chartTf);
+
   $('#drawer').classList.add('on');
   $('#scrim').classList.add('on');
 }
 const closeDrawer = () => { $('#drawer').classList.remove('on'); $('#scrim').classList.remove('on'); };
+
+/* ─────────── نمودار HARSI ─────────── */
+async function loadChart(sym, tf) {
+  const box = $('#harsiBox');
+  if (!box) return;
+  const key = sym + '_' + tf;
+  box.className = 'chart-load';
+  box.textContent = 'در حال بارگذاری نمودار…';
+  try {
+    let k = chartCache[key];
+    if (!k) {
+      k = demo ? TA.demoKlines(hash(key)) : await klines(sym, tf, 260);
+      chartCache[key] = k;
+    }
+    if (drawerSym !== sym) return;               // کاربر ارز را عوض کرده
+    const H = TA.harsi(k, 14);
+    if (H.length < 10) throw new Error('دیتای کافی نیست');
+    box.className = '';
+    box.innerHTML = harsiSvg(H.slice(-90));
+    const st = TA.harsiState(H[H.length - 1]);
+    const el = $('#harsiState');
+    if (el) {
+      el.textContent = `${st.t} · ${(H[H.length - 1].c + 50).toFixed(0)}`;
+      el.className = st.c;
+    }
+  } catch (e) {
+    box.className = 'chart-load';
+    box.textContent = '❌ نمودار بارگذاری نشد';
+  }
+}
+
+function harsiSvg(cs) {
+  const W = 340, H = 170, PAD = 22;
+  const lo = Math.min(-24, ...cs.map(c => c.l)) - 3;
+  const hi = Math.max(24, ...cs.map(c => c.h)) + 3;
+  const y = v => PAD + (hi - v) / (hi - lo) * (H - PAD * 2);
+  const bw = (W - 26) / cs.length;
+
+  const band = `<rect x="0" y="${y(20)}" width="${W}" height="${Math.max(0, y(-20) - y(20))}"
+      fill="#3b82f610"/>`;
+  const lines = [20, 0, -20].map(v => `
+    <line x1="0" y1="${y(v)}" x2="${W - 26}" y2="${y(v)}"
+      stroke="${v === 0 ? '#3d475e' : '#2a3347'}" stroke-width="1"
+      stroke-dasharray="${v === 0 ? '0' : '3,3'}"/>
+    <text x="${W - 23}" y="${y(v) + 3.5}" font-size="9" fill="#8b98b3">${v + 50}</text>`).join('');
+
+  const candles = cs.map((c, i) => {
+    const x = 1 + i * bw, cx = x + bw / 2;
+    const up = c.c >= c.o;
+    const col = up ? '#22c55e' : '#ef4444';
+    const top = y(Math.max(c.o, c.c)), bot = y(Math.min(c.o, c.c));
+    return `<line x1="${cx.toFixed(1)}" y1="${y(c.h).toFixed(1)}" x2="${cx.toFixed(1)}"
+        y2="${y(c.l).toFixed(1)}" stroke="${col}" stroke-width="1"/>
+      <rect x="${x.toFixed(1)}" y="${top.toFixed(1)}" width="${Math.max(1.2, bw - 1.2).toFixed(1)}"
+        height="${Math.max(1, bot - top).toFixed(1)}" fill="${col}" opacity="${up ? .95 : .9}"/>`;
+  }).join('');
+
+  const pts = cs.map((c, i) => `${(1 + i * bw + bw / 2).toFixed(1)},${y(c.rsi).toFixed(1)}`).join(' ');
+
+  return `<svg viewBox="0 0 ${W} ${H}" class="harsi" preserveAspectRatio="none">
+    ${band}${lines}${candles}
+    <polyline points="${pts}" fill="none" stroke="#60a5fa" stroke-width="1.1" opacity=".85"/>
+  </svg>`;
+}
 
 /* ─────────── معامله‌ها ─────────── */
 function addPosition(r, amount, entry) {
