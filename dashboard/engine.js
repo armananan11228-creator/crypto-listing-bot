@@ -200,12 +200,14 @@ const TA = (() => {
     let p = 10 + rnd() * 200;
     const out = [];
     for (let i = 0; i < n; i++) {
-      p *= 1 + trend + (rnd() - .5) * 0.012;
-      const hi = p * (1 + rnd() * .006), lo = p * (1 - rnd() * .006);
+      const open = p;
+      p *= 1 + trend + (rnd() - .5) * 0.02;
+      const hi = Math.max(open, p) * (1 + rnd() * .006);
+      const lo = Math.min(open, p) * (1 - rnd() * .006);
       out.push({
         time: Date.now() - (n - i) * 3600e3,
-        open: p, high: hi, low: lo, close: p,
-        volume: 1000 * (.7 + rnd()) * (i > n - 14 ? 1.2 + rnd() : 1),
+        open, high: hi, low: lo, close: p,
+        volume: 1000 * (.6 + rnd() * 1.2) * (i > n - 14 ? 1.2 + rnd() : 1),
       });
     }
     return out;
@@ -275,6 +277,72 @@ const TA = (() => {
     return { t: '⚪ خنثی', c: 'mu' };
   }
 
-  return { sma, ema, rsi, macd, atr, adx, analyze, btcHealth, stateOf, demoKlines, clamp,
+
+  /* ─────────── اردربلاک صعودی (تایم ۱ ساعته) ───────────
+     آخرین کندل نزولی پیش از یک حرکت صعودی قوی که ساختار را شکسته است.
+     شرط‌های اعتبار:  حرکت ≥ ۱.۵×ATR  ·  حجم ≥ میانگین  ·  شکست سقف قبلی (BOS)
+     و تا الان قیمت با بسته‌شدن کندل زیر آن نرفته باشد.                      */
+  function orderBlocks(k, look = 140) {
+    const c = k.map(x => x.close), h = k.map(x => x.high),
+          l = k.map(x => x.low), o = k.map(x => x.open), v = k.map(x => x.volume);
+    const n = c.length;
+    if (n < 60) return { zones: [], at: false };
+
+    const atrV = atr(h, l, c, 14) || 0;
+    const vAvg = sma(v, 20) || 0;
+    const price = c[n - 1];
+    const zones = [];
+    const start = Math.max(12, n - look);
+
+    for (let i = start; i < n - 4; i++) {
+      if (c[i] >= o[i]) continue;                       // باید کندل نزولی باشد
+      if (vAvg > 0 && v[i] < vAvg * 0.9) continue;      // حجم کافی
+
+      const hi3 = Math.max(h[i + 1], h[i + 2], h[i + 3]);
+      const move = hi3 - c[i];
+      if (move < atrV * 1.5) continue;                  // حرکت باید قوی باشد
+
+      let prevHigh = -Infinity;
+      for (let j = Math.max(0, i - 10); j < i; j++) prevHigh = Math.max(prevHigh, h[j]);
+      if (hi3 <= prevHigh) continue;                    // شکست ساختار (BOS)
+
+      const top = Math.max(o[i], h[i] * 0.999), bottom = l[i];
+
+      let broken = false;                               // بعداً باطل نشده باشد
+      for (let j = i + 1; j < n; j++) if (c[j] < bottom) { broken = true; break; }
+      if (broken) continue;
+
+      const strength = move / (atrV || 1);
+      zones.push({
+        idx: i, top, bottom, mid: (top + bottom) / 2,
+        age: n - 1 - i, strength,
+        volRatio: vAvg > 0 ? v[i] / vAvg : 1,
+        grade: strength >= 3 ? 'قوی' : strength >= 2 ? 'متوسط' : 'ضعیف',
+      });
+    }
+
+    // فقط ناحیه‌هایی که زیر یا روی قیمت فعلی‌اند و نزدیک‌ترین‌ها
+    const valid = zones
+      .filter(z => z.bottom <= price * 1.02)
+      .sort((a, b) => b.idx - a.idx)
+      .slice(0, 4);
+
+    let near = null, at = false, dist = null;
+    for (const z of valid) {
+      const inside = price <= z.top * 1.004 && price >= z.bottom * 0.996;
+      const d = price >= z.top ? (price - z.top) / (atrV || price * .01) : 0;
+      if (inside) { near = z; at = true; dist = 0; break; }
+      if (d <= 0.5 && (dist == null || d < dist)) { near = z; dist = d; }
+    }
+    if (near && !at && dist != null && dist <= 0.5) at = 'nearby';
+
+    return {
+      zones: valid, at, zone: near, atrV,
+      distPct: near ? (price / near.top - 1) * 100 : null,
+      belowPct: near ? (price / near.bottom - 1) * 100 : null,
+    };
+  }
+
+  return { sma, ema, rsi, macd, atr, adx, analyze, btcHealth, stateOf, demoKlines, clamp, orderBlocks,
            rsiSeries, harsi, harsiState };
 })();

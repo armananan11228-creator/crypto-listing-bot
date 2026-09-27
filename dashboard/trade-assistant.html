@@ -191,6 +191,14 @@ footer{text-align:center;color:var(--mu);font-size:12px;padding:26px 16px;line-h
 .rz.ok{background:rgba(34,197,94,.07);border-color:var(--gr)}
 .rz.no{background:rgba(239,68,68,.07);border-color:var(--rd)}
 
+/* ── اردربلاک ── */
+.oblock{display:flex;flex-direction:column;gap:1px;background:rgba(168,85,247,.12);
+  border:1px solid #6d3fa855;border-radius:9px;padding:5px 9px;font-size:12px;margin-bottom:7px;
+  color:#d8b4fe}
+.oblock span{color:var(--mu);font-size:11px;direction:ltr;text-align:right}
+.oblock.in{background:rgba(34,197,94,.12);border-color:#2c6b46;color:#86efac}
+.obplan{border-color:#6d3fa855;background:linear-gradient(180deg,#1a1430,var(--card) 70%)}
+
 </style>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💎</text></svg>">
 </head>
@@ -235,6 +243,7 @@ footer{text-align:center;color:var(--mu);font-size:12px;padding:26px 16px;line-h
     <div class="seg" id="filterSeg">
       <button data-f="buy" class="on">فقط خرید 🟢</button>
       <button data-f="near">نزدیک ⏳</button>
+      <button data-f="ob">🧱 روی اردربلاک</button>
       <button data-f="all">همه</button>
     </div>
     <label class="slider">حداقل امتیاز <b id="minScoreVal">65</b>
@@ -514,12 +523,14 @@ const TA = (() => {
     let p = 10 + rnd() * 200;
     const out = [];
     for (let i = 0; i < n; i++) {
-      p *= 1 + trend + (rnd() - .5) * 0.012;
-      const hi = p * (1 + rnd() * .006), lo = p * (1 - rnd() * .006);
+      const open = p;
+      p *= 1 + trend + (rnd() - .5) * 0.02;
+      const hi = Math.max(open, p) * (1 + rnd() * .006);
+      const lo = Math.min(open, p) * (1 - rnd() * .006);
       out.push({
         time: Date.now() - (n - i) * 3600e3,
-        open: p, high: hi, low: lo, close: p,
-        volume: 1000 * (.7 + rnd()) * (i > n - 14 ? 1.2 + rnd() : 1),
+        open, high: hi, low: lo, close: p,
+        volume: 1000 * (.6 + rnd() * 1.2) * (i > n - 14 ? 1.2 + rnd() : 1),
       });
     }
     return out;
@@ -589,7 +600,73 @@ const TA = (() => {
     return { t: '⚪ خنثی', c: 'mu' };
   }
 
-  return { sma, ema, rsi, macd, atr, adx, analyze, btcHealth, stateOf, demoKlines, clamp,
+
+  /* ─────────── اردربلاک صعودی (تایم ۱ ساعته) ───────────
+     آخرین کندل نزولی پیش از یک حرکت صعودی قوی که ساختار را شکسته است.
+     شرط‌های اعتبار:  حرکت ≥ ۱.۵×ATR  ·  حجم ≥ میانگین  ·  شکست سقف قبلی (BOS)
+     و تا الان قیمت با بسته‌شدن کندل زیر آن نرفته باشد.                      */
+  function orderBlocks(k, look = 140) {
+    const c = k.map(x => x.close), h = k.map(x => x.high),
+          l = k.map(x => x.low), o = k.map(x => x.open), v = k.map(x => x.volume);
+    const n = c.length;
+    if (n < 60) return { zones: [], at: false };
+
+    const atrV = atr(h, l, c, 14) || 0;
+    const vAvg = sma(v, 20) || 0;
+    const price = c[n - 1];
+    const zones = [];
+    const start = Math.max(12, n - look);
+
+    for (let i = start; i < n - 4; i++) {
+      if (c[i] >= o[i]) continue;                       // باید کندل نزولی باشد
+      if (vAvg > 0 && v[i] < vAvg * 0.9) continue;      // حجم کافی
+
+      const hi3 = Math.max(h[i + 1], h[i + 2], h[i + 3]);
+      const move = hi3 - c[i];
+      if (move < atrV * 1.5) continue;                  // حرکت باید قوی باشد
+
+      let prevHigh = -Infinity;
+      for (let j = Math.max(0, i - 10); j < i; j++) prevHigh = Math.max(prevHigh, h[j]);
+      if (hi3 <= prevHigh) continue;                    // شکست ساختار (BOS)
+
+      const top = Math.max(o[i], h[i] * 0.999), bottom = l[i];
+
+      let broken = false;                               // بعداً باطل نشده باشد
+      for (let j = i + 1; j < n; j++) if (c[j] < bottom) { broken = true; break; }
+      if (broken) continue;
+
+      const strength = move / (atrV || 1);
+      zones.push({
+        idx: i, top, bottom, mid: (top + bottom) / 2,
+        age: n - 1 - i, strength,
+        volRatio: vAvg > 0 ? v[i] / vAvg : 1,
+        grade: strength >= 3 ? 'قوی' : strength >= 2 ? 'متوسط' : 'ضعیف',
+      });
+    }
+
+    // فقط ناحیه‌هایی که زیر یا روی قیمت فعلی‌اند و نزدیک‌ترین‌ها
+    const valid = zones
+      .filter(z => z.bottom <= price * 1.02)
+      .sort((a, b) => b.idx - a.idx)
+      .slice(0, 4);
+
+    let near = null, at = false, dist = null;
+    for (const z of valid) {
+      const inside = price <= z.top * 1.004 && price >= z.bottom * 0.996;
+      const d = price >= z.top ? (price - z.top) / (atrV || price * .01) : 0;
+      if (inside) { near = z; at = true; dist = 0; break; }
+      if (d <= 0.5 && (dist == null || d < dist)) { near = z; dist = d; }
+    }
+    if (near && !at && dist != null && dist <= 0.5) at = 'nearby';
+
+    return {
+      zones: valid, at, zone: near, atrV,
+      distPct: near ? (price / near.top - 1) * 100 : null,
+      belowPct: near ? (price / near.bottom - 1) * 100 : null,
+    };
+  }
+
+  return { sma, ema, rsi, macd, atr, adx, analyze, btcHealth, stateOf, demoKlines, clamp, orderBlocks,
            rsiSeries, harsi, harsiState };
 })();
 
@@ -715,7 +792,8 @@ async function scan() {
       const a = TA.analyze(k, CFG);
       if (!a) return null;
       a.score *= market.mult;
-      return { ...t, ...a, state: TA.stateOf(a.score, a.rsi, market.ok, CFG) };
+      const ob = CFG.tf === '1h' ? TA.orderBlocks(k) : null;
+      return { ...t, ...a, ob, state: TA.stateOf(a.score, a.rsi, market.ok, CFG) };
     }, 8, (d, n) => setProgress(d, n, `تحلیل ${d} از ${n} ارز…`));
 
     rows.sort((a, b) => b.score - a.score);
@@ -747,6 +825,34 @@ function demoList(n) {
 function setProgress(d, n, txt) {
   $('#progressBar').style.width = (d / n * 100) + '%';
   $('#progressTxt').textContent = txt;
+}
+
+/* ─────────── اردربلاک ۱ ساعته (بارگذاری تنبل) ─────────── */
+async function ensureOB() {
+  const need = scanRows.filter(r => !r.ob).slice(0, 80);
+  if (!need.length) return;
+  $('#progress').hidden = false;
+  setProgress(0, 1, 'بررسی اردربلاک‌های ۱ ساعته…');
+  await pool(need, async r => {
+    const key = r.symbol + '_1h';
+    let k = chartCache[key];
+    if (!k) {
+      k = demo ? TA.demoKlines(hash(key)) : await klines(r.symbol, '1h', 260);
+      chartCache[key] = k;
+    }
+    r.ob = TA.orderBlocks(k);
+    return true;
+  }, 8, (d, n) => setProgress(d, n, `بررسی اردربلاک ${d} از ${n}…`));
+  $('#progress').hidden = true;
+}
+
+function obBadge(ob) {
+  if (!ob || !ob.at) return '';
+  const z = ob.zone;
+  const inside = ob.at === true;
+  return `<div class="oblock ${inside ? 'in' : 'near'}">
+    🧱 ${inside ? 'داخل اردربلاک' : 'نزدیک اردربلاک'} ${z.grade}
+    <span>${fmt(z.bottom)} – ${fmt(z.top)} · ${z.age} کندل پیش</span></div>`;
 }
 
 /* ═══════ حافظه‌ی سیگنال — اسکنر پای حرفش می‌ماند ═══════
@@ -865,6 +971,13 @@ function reasons(r) {
   else
     cons.push(['💪', `قدرت روند فقط ${r.adx.toFixed(0)}`, 'بازار بی‌رمق است؛ حرکت ممکن است کش‌دار شود.']);
 
+  if (r.ob && r.ob.at === true)
+    pros.push(['🧱', `روی اردربلاک ${r.ob.zone.grade} (۱ ساعته)`,
+      `قیمت داخل ناحیه ${fmt(r.ob.zone.bottom)} تا ${fmt(r.ob.zone.top)} است — جایی که خریدار قبلاً با حجم وارد شده. بهترین نقطه برای ورود کم‌ریسک با حد ضرر زیر همین ناحیه.`]);
+  else if (r.ob && r.ob.at === 'nearby')
+    pros.push(['🧱', 'نزدیک اردربلاک ۱ ساعته',
+      `تا ناحیه ${fmt(r.ob.zone.bottom)}–${fmt(r.ob.zone.top)} فاصله‌ی کمی دارد؛ اگر پولبک بزند ورود بهتری می‌دهد.`]);
+
   if (d.breakout) pros.push(['🚀', 'شکست سقف ۱۰ کندل', 'قیمت از آخرین مقاومت کوتاه‌مدت رد شده.']);
   if (d.higherLow) pros.push(['🪜', 'کف‌های بالاتر', 'خریداران در هر اصلاح زودتر وارد می‌شوند.']);
 
@@ -892,6 +1005,8 @@ function renderScan() {
   let rows = scanRows;
   if (filter === 'buy') rows = rows.filter(r => r.state.t === '🟢 بخر');
   else if (filter === 'near') rows = rows.filter(r => /بخر|نزدیک|داغ/.test(r.state.t));
+  else if (filter === 'ob') rows = rows.filter(r => r.ob && r.ob.at)
+    .sort((a, b) => (a.ob.at === true ? 0 : 1) - (b.ob.at === true ? 0 : 1) || b.score - a.score);
 
   const active = Object.values(signals).sort((a, b) => b.at - a.at);
   const activeSyms = new Set(active.map(a => a.symbol));
@@ -899,7 +1014,9 @@ function renderScan() {
 
   $('#empty').hidden = rows.length + active.length > 0;
   if (!rows.length && scanRows.length)
-    $('#empty').textContent = 'الان هیچ ارز جدیدی شرایط خرید ندارد — صبر بهترین معامله است ☕';
+    $('#empty').textContent = filter === 'ob'
+      ? 'الان هیچ ارزی روی اردربلاک ۱ ساعته نیست — کمی بعد دوباره چک کن 🧱'
+      : 'الان هیچ ارز جدیدی شرایط خرید ندارد — صبر بهترین معامله است ☕';
 
   const head = active.length
     ? `<h3 class="sechead">📌 سیگنال‌های فعال (${active.length}) — تا زمان هدف یا حد ضرر معتبرند</h3>`
@@ -916,6 +1033,7 @@ function renderScan() {
         <div class="score ${cls}">${r.score.toFixed(0)}</div>
       </div>
       <div class="state ${r.state.c}">${r.state.t}</div>
+      ${obBadge(r.ob)}
       ${spark(r.closes)}
       <div class="kv"><span>قیمت</span><b>${fmt(r.price)}</b></div>
       <div class="kv"><span>۲۴ ساعت</span><b class="${r.chg24 >= 0 ? 'up' : 'dn'}">${pct(r.chg24)}</b></div>
@@ -995,6 +1113,15 @@ function openDrawer(sym) {
       ${R.cons.length ? `<h4>⚠️ نکات منفی</h4>` : ''}
       ${R.cons.map(([i, t, d]) => `<div class="rz no"><b>${i} ${t}</b><span>${d}</span></div>`).join('')}
     </div>
+
+    ${r.ob && r.ob.zone ? `<div class="plan obplan">
+      <div class="kv"><span>🧱 اردربلاک ۱ ساعته</span><b>${r.ob.zone.grade}</b></div>
+      <div class="kv"><span>محدوده ناحیه</span><b>${fmt(r.ob.zone.bottom)} – ${fmt(r.ob.zone.top)}</b></div>
+      <div class="kv"><span>وضعیت قیمت</span><b class="${r.ob.at === true ? 'up' : 'wa'}">${
+        r.ob.at === true ? 'داخل ناحیه ✅' : r.ob.at === 'nearby' ? 'نزدیک ناحیه' : 'بالاتر از ناحیه'}</b></div>
+      <div class="kv"><span>عمر ناحیه</span><b>${r.ob.zone.age} کندل</b></div>
+      <div class="kv"><span>حد ضرر پیشنهادی</span><b class="dn">${fmt(r.ob.zone.bottom * 0.997)}</b></div>
+    </div>` : ''}
 
     <div class="plan">
       <div class="kv"><span>قیمت فعلی</span><b>${fmt(r.price)}</b></div>
@@ -1360,9 +1487,11 @@ function init() {
     $$('#tfSeg button').forEach(x => x.classList.remove('on'));
     b.classList.add('on'); CFG.tf = b.dataset.tf; save('cfg', CFG); scan();
   });
-  $$('#filterSeg button').forEach(b => b.onclick = () => {
+  $$('#filterSeg button').forEach(b => b.onclick = async () => {
     $$('#filterSeg button').forEach(x => x.classList.remove('on'));
-    b.classList.add('on'); filter = b.dataset.f; renderScan();
+    b.classList.add('on'); filter = b.dataset.f;
+    if (filter === 'ob') await ensureOB();
+    renderScan();
   });
   const ms = $('#minScore');
   ms.value = CFG.minScore; $('#minScoreVal').textContent = CFG.minScore;

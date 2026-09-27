@@ -118,7 +118,8 @@ async function scan() {
       const a = TA.analyze(k, CFG);
       if (!a) return null;
       a.score *= market.mult;
-      return { ...t, ...a, state: TA.stateOf(a.score, a.rsi, market.ok, CFG) };
+      const ob = CFG.tf === '1h' ? TA.orderBlocks(k) : null;
+      return { ...t, ...a, ob, state: TA.stateOf(a.score, a.rsi, market.ok, CFG) };
     }, 8, (d, n) => setProgress(d, n, `تحلیل ${d} از ${n} ارز…`));
 
     rows.sort((a, b) => b.score - a.score);
@@ -150,6 +151,34 @@ function demoList(n) {
 function setProgress(d, n, txt) {
   $('#progressBar').style.width = (d / n * 100) + '%';
   $('#progressTxt').textContent = txt;
+}
+
+/* ─────────── اردربلاک ۱ ساعته (بارگذاری تنبل) ─────────── */
+async function ensureOB() {
+  const need = scanRows.filter(r => !r.ob).slice(0, 80);
+  if (!need.length) return;
+  $('#progress').hidden = false;
+  setProgress(0, 1, 'بررسی اردربلاک‌های ۱ ساعته…');
+  await pool(need, async r => {
+    const key = r.symbol + '_1h';
+    let k = chartCache[key];
+    if (!k) {
+      k = demo ? TA.demoKlines(hash(key)) : await klines(r.symbol, '1h', 260);
+      chartCache[key] = k;
+    }
+    r.ob = TA.orderBlocks(k);
+    return true;
+  }, 8, (d, n) => setProgress(d, n, `بررسی اردربلاک ${d} از ${n}…`));
+  $('#progress').hidden = true;
+}
+
+function obBadge(ob) {
+  if (!ob || !ob.at) return '';
+  const z = ob.zone;
+  const inside = ob.at === true;
+  return `<div class="oblock ${inside ? 'in' : 'near'}">
+    🧱 ${inside ? 'داخل اردربلاک' : 'نزدیک اردربلاک'} ${z.grade}
+    <span>${fmt(z.bottom)} – ${fmt(z.top)} · ${z.age} کندل پیش</span></div>`;
 }
 
 /* ═══════ حافظه‌ی سیگنال — اسکنر پای حرفش می‌ماند ═══════
@@ -268,6 +297,13 @@ function reasons(r) {
   else
     cons.push(['💪', `قدرت روند فقط ${r.adx.toFixed(0)}`, 'بازار بی‌رمق است؛ حرکت ممکن است کش‌دار شود.']);
 
+  if (r.ob && r.ob.at === true)
+    pros.push(['🧱', `روی اردربلاک ${r.ob.zone.grade} (۱ ساعته)`,
+      `قیمت داخل ناحیه ${fmt(r.ob.zone.bottom)} تا ${fmt(r.ob.zone.top)} است — جایی که خریدار قبلاً با حجم وارد شده. بهترین نقطه برای ورود کم‌ریسک با حد ضرر زیر همین ناحیه.`]);
+  else if (r.ob && r.ob.at === 'nearby')
+    pros.push(['🧱', 'نزدیک اردربلاک ۱ ساعته',
+      `تا ناحیه ${fmt(r.ob.zone.bottom)}–${fmt(r.ob.zone.top)} فاصله‌ی کمی دارد؛ اگر پولبک بزند ورود بهتری می‌دهد.`]);
+
   if (d.breakout) pros.push(['🚀', 'شکست سقف ۱۰ کندل', 'قیمت از آخرین مقاومت کوتاه‌مدت رد شده.']);
   if (d.higherLow) pros.push(['🪜', 'کف‌های بالاتر', 'خریداران در هر اصلاح زودتر وارد می‌شوند.']);
 
@@ -295,6 +331,8 @@ function renderScan() {
   let rows = scanRows;
   if (filter === 'buy') rows = rows.filter(r => r.state.t === '🟢 بخر');
   else if (filter === 'near') rows = rows.filter(r => /بخر|نزدیک|داغ/.test(r.state.t));
+  else if (filter === 'ob') rows = rows.filter(r => r.ob && r.ob.at)
+    .sort((a, b) => (a.ob.at === true ? 0 : 1) - (b.ob.at === true ? 0 : 1) || b.score - a.score);
 
   const active = Object.values(signals).sort((a, b) => b.at - a.at);
   const activeSyms = new Set(active.map(a => a.symbol));
@@ -302,7 +340,9 @@ function renderScan() {
 
   $('#empty').hidden = rows.length + active.length > 0;
   if (!rows.length && scanRows.length)
-    $('#empty').textContent = 'الان هیچ ارز جدیدی شرایط خرید ندارد — صبر بهترین معامله است ☕';
+    $('#empty').textContent = filter === 'ob'
+      ? 'الان هیچ ارزی روی اردربلاک ۱ ساعته نیست — کمی بعد دوباره چک کن 🧱'
+      : 'الان هیچ ارز جدیدی شرایط خرید ندارد — صبر بهترین معامله است ☕';
 
   const head = active.length
     ? `<h3 class="sechead">📌 سیگنال‌های فعال (${active.length}) — تا زمان هدف یا حد ضرر معتبرند</h3>`
@@ -319,6 +359,7 @@ function renderScan() {
         <div class="score ${cls}">${r.score.toFixed(0)}</div>
       </div>
       <div class="state ${r.state.c}">${r.state.t}</div>
+      ${obBadge(r.ob)}
       ${spark(r.closes)}
       <div class="kv"><span>قیمت</span><b>${fmt(r.price)}</b></div>
       <div class="kv"><span>۲۴ ساعت</span><b class="${r.chg24 >= 0 ? 'up' : 'dn'}">${pct(r.chg24)}</b></div>
@@ -398,6 +439,15 @@ function openDrawer(sym) {
       ${R.cons.length ? `<h4>⚠️ نکات منفی</h4>` : ''}
       ${R.cons.map(([i, t, d]) => `<div class="rz no"><b>${i} ${t}</b><span>${d}</span></div>`).join('')}
     </div>
+
+    ${r.ob && r.ob.zone ? `<div class="plan obplan">
+      <div class="kv"><span>🧱 اردربلاک ۱ ساعته</span><b>${r.ob.zone.grade}</b></div>
+      <div class="kv"><span>محدوده ناحیه</span><b>${fmt(r.ob.zone.bottom)} – ${fmt(r.ob.zone.top)}</b></div>
+      <div class="kv"><span>وضعیت قیمت</span><b class="${r.ob.at === true ? 'up' : 'wa'}">${
+        r.ob.at === true ? 'داخل ناحیه ✅' : r.ob.at === 'nearby' ? 'نزدیک ناحیه' : 'بالاتر از ناحیه'}</b></div>
+      <div class="kv"><span>عمر ناحیه</span><b>${r.ob.zone.age} کندل</b></div>
+      <div class="kv"><span>حد ضرر پیشنهادی</span><b class="dn">${fmt(r.ob.zone.bottom * 0.997)}</b></div>
+    </div>` : ''}
 
     <div class="plan">
       <div class="kv"><span>قیمت فعلی</span><b>${fmt(r.price)}</b></div>
@@ -763,9 +813,11 @@ function init() {
     $$('#tfSeg button').forEach(x => x.classList.remove('on'));
     b.classList.add('on'); CFG.tf = b.dataset.tf; save('cfg', CFG); scan();
   });
-  $$('#filterSeg button').forEach(b => b.onclick = () => {
+  $$('#filterSeg button').forEach(b => b.onclick = async () => {
     $$('#filterSeg button').forEach(x => x.classList.remove('on'));
-    b.classList.add('on'); filter = b.dataset.f; renderScan();
+    b.classList.add('on'); filter = b.dataset.f;
+    if (filter === 'ob') await ensureOB();
+    renderScan();
   });
   const ms = $('#minScore');
   ms.value = CFG.minScore; $('#minScoreVal').textContent = CFG.minScore;

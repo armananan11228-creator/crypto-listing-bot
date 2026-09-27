@@ -183,3 +183,11 @@ footer{text-align:center;color:var(--mu);font-size:12px;padding:26px 16px;line-h
 .rz span{color:var(--mu);line-height:1.7}
 .rz.ok{background:rgba(34,197,94,.07);border-color:var(--gr)}
 .rz.no{background:rgba(239,68,68,.07);border-color:var(--rd)}
+
+/* ── اردربلاک ── */
+.oblock{display:flex;flex-direction:column;gap:1px;background:rgba(168,85,247,.12);
+  border:1px solid #6d3fa855;border-radius:9px;padding:5px 9px;font-size:12px;margin-bottom:7px;
+  color:#d8b4fe}
+.oblock span{color:var(--mu);font-size:11px;direction:ltr;text-align:right}
+.oblock.in{background:rgba(34,197,94,.12);border-color:#2c6b46;color:#86efac}
+.obplan{border-color:#6d3fa855;background:linear-gradient(180deg,#1a1430,var(--card) 70%)}
