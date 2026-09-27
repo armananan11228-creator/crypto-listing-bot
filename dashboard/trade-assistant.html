@@ -160,8 +160,6 @@ footer{text-align:center;color:var(--mu);font-size:12px;padding:26px 16px;line-h
   .slider{flex:1}
 }
 
-<<<<<<< HEAD
-=======
 /* ── نمودار HARSI ── */
 .chartbox{background:var(--card);border:1px solid var(--line);border-radius:14px;
   padding:11px;margin-bottom:12px}
@@ -176,7 +174,6 @@ footer{text-align:center;color:var(--mu);font-size:12px;padding:26px 16px;line-h
   font-size:11px;color:var(--mu)}
 .chart-legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-left:4px}
 
->>>>>>> 1aa319a (Add HARSI (Heikin-Ashi RSI) chart with timeframe switcher in coin drawer)
 </style>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💎</text></svg>">
 </head>
@@ -504,9 +501,6 @@ const TA = (() => {
     return out;
   }
 
-<<<<<<< HEAD
-  return { sma, ema, rsi, macd, atr, adx, analyze, btcHealth, stateOf, demoKlines, clamp };
-=======
 
   /* ─────────── HARSI — Heikin-Ashi RSI ───────────
      RSI روی open/high/low/close حساب و بعد با روش هایکن‌اشی صاف می‌شود.
@@ -573,7 +567,6 @@ const TA = (() => {
 
   return { sma, ema, rsi, macd, atr, adx, analyze, btcHealth, stateOf, demoKlines, clamp,
            rsiSeries, harsi, harsiState };
->>>>>>> 1aa319a (Add HARSI (Heikin-Ashi RSI) chart with timeframe switcher in coin drawer)
 })();
 
 </script>
@@ -606,11 +599,8 @@ let demo = false;
 let filter = 'buy';
 let scanning = false;
 let lastScan = 0;
-<<<<<<< HEAD
-=======
 let drawerSym = null, chartTf = load('chartTf', '1h');
 const chartCache = {};
->>>>>>> 1aa319a (Add HARSI (Heikin-Ashi RSI) chart with timeframe switcher in coin drawer)
 
 function load(k, d) { try { return JSON.parse(localStorage.getItem('at_' + k)) ?? d; } catch { return d; } }
 function save(k, v) { localStorage.setItem('at_' + k, JSON.stringify(v)); }
@@ -799,9 +789,6 @@ function openDrawer(sym) {
         slp = (r.sl / r.price - 1) * 100;
   const has = positions.find(p => p.symbol === sym);
 
-<<<<<<< HEAD
-  $('#drBody').innerHTML = `
-=======
   drawerSym = sym;
   $('#drBody').innerHTML = `
     <div class="chartbox">
@@ -820,7 +807,6 @@ function openDrawer(sym) {
         <span><i style="background:#60a5fa"></i> خط RSI</span>
       </div>
     </div>
->>>>>>> 1aa319a (Add HARSI (Heikin-Ashi RSI) chart with timeframe switcher in coin drawer)
     ${spark(r.closes)}
     <div class="factors">${r.factors.map(f => `
       <div class="f"><span>${f.n}</span>
@@ -859,8 +845,6 @@ function openDrawer(sym) {
       switchTab('pos');
     };
   }
-<<<<<<< HEAD
-=======
   $$('#chartTf button').forEach(b => b.onclick = () => {
     chartTf = b.dataset.ctf; save('chartTf', chartTf);
     $$('#chartTf button').forEach(x => x.classList.toggle('on', x.dataset.ctf === chartTf));
@@ -868,14 +852,11 @@ function openDrawer(sym) {
   });
   loadChart(sym, chartTf);
 
->>>>>>> 1aa319a (Add HARSI (Heikin-Ashi RSI) chart with timeframe switcher in coin drawer)
   $('#drawer').classList.add('on');
   $('#scrim').classList.add('on');
 }
 const closeDrawer = () => { $('#drawer').classList.remove('on'); $('#scrim').classList.remove('on'); };
 
-<<<<<<< HEAD
-=======
 /* ─────────── نمودار HARSI ─────────── */
 async function loadChart(sym, tf) {
   const box = $('#harsiBox');
@@ -940,7 +921,6 @@ function harsiSvg(cs) {
   </svg>`;
 }
 
->>>>>>> 1aa319a (Add HARSI (Heikin-Ashi RSI) chart with timeframe switcher in coin drawer)
 /* ─────────── معامله‌ها ─────────── */
 function addPosition(r, amount, entry) {
   const k = entry / r.price;
