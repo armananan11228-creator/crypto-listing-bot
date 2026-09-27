@@ -327,14 +327,19 @@ const TA = (() => {
       .sort((a, b) => b.idx - a.idx)
       .slice(0, 4);
 
-    let near = null, at = false, dist = null;
+    // نزدیک‌ترین ناحیه به قیمت فعلی
+    let near = null, bestD = Infinity, inside = false;
     for (const z of valid) {
-      const inside = price <= z.top * 1.004 && price >= z.bottom * 0.996;
-      const d = price >= z.top ? (price - z.top) / (atrV || price * .01) : 0;
-      if (inside) { near = z; at = true; dist = 0; break; }
-      if (d <= 0.5 && (dist == null || d < dist)) { near = z; dist = d; }
+      const ins = price <= z.top * 1.004 && price >= z.bottom * 0.996;
+      const d = ins ? 0 : Math.abs(price - z.top) / price;
+      if (d < bestD) { bestD = d; near = z; inside = ins; }
     }
-    if (near && !at && dist != null && dist <= 0.5) at = 'nearby';
+
+    let at = false;
+    if (near) {
+      const tol = Math.max(0.012, (atrV / price) * 1.2);   // «نزدیک» = ~۱.۲٪ یا ۱.۲ برابر ATR
+      at = inside ? 'inside' : bestD <= tol ? 'near' : bestD <= 0.045 ? 'approach' : false;
+    }
 
     return {
       zones: valid, at, zone: near, atrV,

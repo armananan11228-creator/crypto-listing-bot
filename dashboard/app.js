@@ -172,13 +172,21 @@ async function ensureOB() {
   $('#progress').hidden = true;
 }
 
+const OBST = {
+  inside:   { i: '🧱', t: 'روی اردربلاک',    c: 'in'   },
+  near:     { i: '🎯', t: 'چسبیده به اردربلاک', c: 'near' },
+  approach: { i: '↘️', t: 'در حال نزدیک‌شدن', c: 'appr' },
+};
+const OBRANK = { inside: 0, near: 1, approach: 2 };
+
 function obBadge(ob) {
   if (!ob || !ob.at) return '';
-  const z = ob.zone;
-  const inside = ob.at === true;
-  return `<div class="oblock ${inside ? 'in' : 'near'}">
-    🧱 ${inside ? 'داخل اردربلاک' : 'نزدیک اردربلاک'} ${z.grade}
-    <span>${fmt(z.bottom)} – ${fmt(z.top)} · ${z.age} کندل پیش</span></div>`;
+  const z = ob.zone, st = OBST[ob.at];
+  const d = ob.distPct;
+  const dTxt = ob.at === 'inside' ? 'داخل ناحیه' : `${Math.abs(d).toFixed(1)}٪ ${d > 0 ? 'بالاتر' : 'پایین‌تر'}`;
+  return `<div class="oblock ${st.c}">
+    <div>${st.i} ${st.t} <em>${z.grade}</em> · ${dTxt}</div>
+    <span>ناحیه ${fmt(z.bottom)} – ${fmt(z.top)} · ${z.age} کندل پیش · ۱ ساعته</span></div>`;
 }
 
 /* ═══════ حافظه‌ی سیگنال — اسکنر پای حرفش می‌ماند ═══════
@@ -297,12 +305,15 @@ function reasons(r) {
   else
     cons.push(['💪', `قدرت روند فقط ${r.adx.toFixed(0)}`, 'بازار بی‌رمق است؛ حرکت ممکن است کش‌دار شود.']);
 
-  if (r.ob && r.ob.at === true)
+  if (r.ob && r.ob.at === 'inside')
     pros.push(['🧱', `روی اردربلاک ${r.ob.zone.grade} (۱ ساعته)`,
-      `قیمت داخل ناحیه ${fmt(r.ob.zone.bottom)} تا ${fmt(r.ob.zone.top)} است — جایی که خریدار قبلاً با حجم وارد شده. بهترین نقطه برای ورود کم‌ریسک با حد ضرر زیر همین ناحیه.`]);
-  else if (r.ob && r.ob.at === 'nearby')
-    pros.push(['🧱', 'نزدیک اردربلاک ۱ ساعته',
-      `تا ناحیه ${fmt(r.ob.zone.bottom)}–${fmt(r.ob.zone.top)} فاصله‌ی کمی دارد؛ اگر پولبک بزند ورود بهتری می‌دهد.`]);
+      `قیمت داخل ناحیه ${fmt(r.ob.zone.bottom)} تا ${fmt(r.ob.zone.top)} است — جایی که ${r.ob.zone.age} کندل پیش خریدار با حجم بالا وارد شد و قیمت را ${r.ob.zone.strength.toFixed(1)} برابر ATR بالا برد. کم‌ریسک‌ترین نقطه‌ی ورود، با حد ضرر درست زیر همین ناحیه.`]);
+  else if (r.ob && r.ob.at === 'near')
+    pros.push(['🎯', 'چسبیده به اردربلاک ۱ ساعته',
+      `فقط ${Math.abs(r.ob.distPct).toFixed(1)}٪ با ناحیه ${fmt(r.ob.zone.bottom)}–${fmt(r.ob.zone.top)} فاصله دارد؛ یک پولبک کوچک، ورود عالی می‌دهد.`]);
+  else if (r.ob && r.ob.at === 'approach')
+    cons.push(['↘️', `${Math.abs(r.ob.distPct).toFixed(1)}٪ بالاتر از اردربلاک`,
+      `ناحیه‌ی حمایتی ${fmt(r.ob.zone.bottom)}–${fmt(r.ob.zone.top)} پایین‌تر است. اگر عجله نداری، منتظر برگشت قیمت به آن ناحیه بمان تا حد ضررت کوتاه‌تر شود.`]);
 
   if (d.breakout) pros.push(['🚀', 'شکست سقف ۱۰ کندل', 'قیمت از آخرین مقاومت کوتاه‌مدت رد شده.']);
   if (d.higherLow) pros.push(['🪜', 'کف‌های بالاتر', 'خریداران در هر اصلاح زودتر وارد می‌شوند.']);
@@ -332,16 +343,17 @@ function renderScan() {
   if (filter === 'buy') rows = rows.filter(r => r.state.t === '🟢 بخر');
   else if (filter === 'near') rows = rows.filter(r => /بخر|نزدیک|داغ/.test(r.state.t));
   else if (filter === 'ob') rows = rows.filter(r => r.ob && r.ob.at)
-    .sort((a, b) => (a.ob.at === true ? 0 : 1) - (b.ob.at === true ? 0 : 1) || b.score - a.score);
+    .sort((a, b) => OBRANK[a.ob.at] - OBRANK[b.ob.at] ||
+      Math.abs(a.ob.distPct) - Math.abs(b.ob.distPct));
 
-  const active = Object.values(signals).sort((a, b) => b.at - a.at);
+  const active = filter === 'ob' ? [] : Object.values(signals).sort((a, b) => b.at - a.at);
   const activeSyms = new Set(active.map(a => a.symbol));
   rows = rows.filter(r => !activeSyms.has(r.symbol));
 
   $('#empty').hidden = rows.length + active.length > 0;
   if (!rows.length && scanRows.length)
     $('#empty').textContent = filter === 'ob'
-      ? 'الان هیچ ارزی روی اردربلاک ۱ ساعته نیست — کمی بعد دوباره چک کن 🧱'
+      ? 'هیچ ارزی اردربلاک معتبر ۱ ساعته‌ی نزدیک ندارد — کمی بعد دوباره چک کن 🧱'
       : 'الان هیچ ارز جدیدی شرایط خرید ندارد — صبر بهترین معامله است ☕';
 
   const head = active.length
@@ -387,6 +399,12 @@ function spark(closes) {
 function renderHeader() {
   $('#btcHealth').textContent = market.txt;
   $('#btcPrice').textContent = market.price ? '$' + fmt(market.price) : '—';
+  const obBtn = $('#filterSeg button[data-f="ob"]');
+  if (obBtn) {
+    const c = scanRows.filter(r => r.ob && r.ob.at).length;
+    const hasData = scanRows.some(r => r.ob);
+    obBtn.textContent = '🧱 روی اردربلاک' + (hasData ? ` (${c})` : '');
+  }
   $('#buyCount').textContent = scanRows.filter(r => r.state.t === '🟢 بخر').length + ' ارز';
   const pnl = positions.reduce((s, p) => s + (p.now ? (p.now / p.entry - 1) * p.amount : 0), 0);
   const el = $('#openPnl');
@@ -443,8 +461,11 @@ function openDrawer(sym) {
     ${r.ob && r.ob.zone ? `<div class="plan obplan">
       <div class="kv"><span>🧱 اردربلاک ۱ ساعته</span><b>${r.ob.zone.grade}</b></div>
       <div class="kv"><span>محدوده ناحیه</span><b>${fmt(r.ob.zone.bottom)} – ${fmt(r.ob.zone.top)}</b></div>
-      <div class="kv"><span>وضعیت قیمت</span><b class="${r.ob.at === true ? 'up' : 'wa'}">${
-        r.ob.at === true ? 'داخل ناحیه ✅' : r.ob.at === 'nearby' ? 'نزدیک ناحیه' : 'بالاتر از ناحیه'}</b></div>
+      <div class="kv"><span>وضعیت قیمت</span><b class="${r.ob.at === 'inside' ? 'up' : 'wa'}">${
+        r.ob.at === 'inside' ? 'داخل ناحیه ✅'
+        : r.ob.at === 'near' ? 'چسبیده به ناحیه'
+        : r.ob.at === 'approach' ? `${Math.abs(r.ob.distPct).toFixed(1)}٪ تا ناحیه`
+        : 'دور از ناحیه'}</b></div>
       <div class="kv"><span>عمر ناحیه</span><b>${r.ob.zone.age} کندل</b></div>
       <div class="kv"><span>حد ضرر پیشنهادی</span><b class="dn">${fmt(r.ob.zone.bottom * 0.997)}</b></div>
     </div>` : ''}
