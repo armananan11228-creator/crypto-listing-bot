@@ -309,33 +309,3 @@ input[type=checkbox]{accent-color:var(--ac)}
   .sig::before,.sig::after{font-size:9px}
 }
 
-/* ── صندوق‌های طلا ── */
-.gcard{border-inline-start:3px solid var(--line2)}
-.gcard.lvl0,.gcard.lvl1{border-inline-start-color:#34d399}
-.gcard.lvl2{border-inline-start-color:#a394c4}
-.gcard.lvl3{border-inline-start-color:#fbbf24}
-.gcard.lvl4{border-inline-start-color:#fb5a6d}
-.gtop{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:11px}
-.gtop b{font-size:18px}
-.gtop .muted{font-size:12px;flex:1}
-.gver{font-size:13px;font-weight:700;padding:3px 11px;border-radius:99px;
-  background:rgba(168,120,255,.12);border:1px solid var(--line)}
-.gver.up{color:var(--gr);border-color:rgba(52,211,153,.4);background:rgba(52,211,153,.12)}
-.gver.dn{color:var(--rd);border-color:rgba(251,90,109,.4);background:rgba(251,90,109,.12)}
-.gver.wa{color:var(--or);border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.12)}
-.gnums{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px;margin-bottom:11px}
-.gnums div{background:rgba(168,120,255,.09);border:1px solid rgba(168,120,255,.13);
-  border-radius:11px;padding:7px 8px;text-align:center}
-.gnums span{display:block;font-size:11px;color:var(--mu)}
-.gnums b{font-size:14.5px;direction:ltr;display:block}
-.gsvg{width:100%;height:74px;background:rgba(10,6,20,.45);border:1px solid var(--line);
-  border-radius:11px;display:block}
-.glegend{display:flex;justify-content:space-between;font-size:10.5px;color:var(--mu);
-  margin:4px 2px 0;direction:ltr}
-.gnote{font-size:12.5px;color:var(--mu);margin:10px 0 0;line-height:1.85}
-.grow{display:flex;gap:7px;margin-top:10px;flex-wrap:wrap}
-.grow input{flex:1;min-width:104px;padding:8px 11px;font:inherit;font-size:13px}
-.gpick{background:linear-gradient(135deg,rgba(168,85,247,.20),rgba(20,13,36,.5));
-  border:1px solid var(--line2);border-radius:16px;padding:13px 16px;margin-bottom:14px;
-  font-size:14.5px;backdrop-filter:var(--blur)}
-.gpick .muted{display:block;font-size:12px;margin-top:5px}

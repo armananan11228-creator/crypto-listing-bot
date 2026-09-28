@@ -36,7 +36,6 @@
 <nav class="tabs">
   <button class="tab on" data-tab="scan">🔎 اسکنر</button>
   <button class="tab" data-tab="pos">💼 معامله‌های من <span class="badge" id="posCount">0</span></button>
-  <button class="tab" data-tab="gold">🥇 طلا</button>
   <button class="tab" data-tab="hist">📜 تاریخچه</button>
   <button class="tab" data-tab="set">⚙️ تنظیمات</button>
 </nav>
@@ -80,23 +79,6 @@
   <div id="histCards"></div>
   <section class="list" id="histList"></section>
   <div class="empty" id="histEmpty">هنوز معامله‌ی بسته‌شده‌ای نداری.</div>
-</main>
-
-<!-- ─────────── صندوق‌های طلا ─────────── -->
-<main class="page" id="page-gold">
-  <div class="controls">
-    <button class="btn primary" id="goldFetch">🔄 دریافت خودکار از TSETMC</button>
-    <button class="btn" id="goldAdd">➕ ثبت دستی قیمت امروز</button>
-    <span class="muted" id="goldStatus">—</span>
-  </div>
-  <div id="goldVerdict"></div>
-  <div id="goldCards" class="grid"></div>
-  <section class="card pad" id="goldHelp">
-    <h3>📖 این صفحه چطور کار می‌کند؟</h3>
-    <p class="muted">برای صندوق طلا، اندیکاتورهای کریپتو (RSI و مکدی) بی‌فایده‌اند — چون قیمت صندوق فقط دنبال طلای جهانی و دلار است. تنها چیزی که <b>واقعاً</b> قابل معامله است، <b>حباب</b> است: اختلاف قیمت تابلو با ارزش واقعی دارایی‌ها (NAV).</p>
-    <p class="muted">این صفحه حباب هر صندوق را با <b>عادت تاریخی خودش</b> مقایسه می‌کند، نه با صفر. اگر عیار همیشه ۱.۵٪ حباب دارد، حبابِ ۰.۳٪ برایش ارزان است.</p>
-    <p class="muted">هر روز یک بار دکمه‌ی بالا را بزن تا قیمت و NAV ذخیره شود. بعد از حدود ۱۰ روز، تحلیل معنادار می‌شود.</p>
-  </section>
 </main>
 
 <!-- ─────────── تنظیمات ─────────── -->
