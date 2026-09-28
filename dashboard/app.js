@@ -907,6 +907,7 @@ function alarm(title, body) { notify(title, body); beep(); }
 function switchTab(name) {
   $$('.tab').forEach(t => t.classList.toggle('on', t.dataset.tab === name));
   $$('.page').forEach(p => p.classList.toggle('on', p.id === 'page-' + name));
+  if (name === 'gold') renderGold();
 }
 
 function bindSettings() {
@@ -989,6 +990,9 @@ function init() {
   $$('#tfSeg button').forEach(b => b.classList.toggle('on', b.dataset.tf === CFG.tf));
 
   bindSettings();
+  $('#goldFetch').onclick = goldFetch;
+  $('#goldAdd').onclick = () => { renderGold(); $('#goldCards input')?.focus(); };
+  renderGold();
   renderPositions(); renderHistory(); renderHeader();
   scan();
 
@@ -1008,3 +1012,212 @@ function evaluatePositions() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+/* ═══════════════════════════════════════════════════════════════════
+   🥇 صندوق‌های طلا — تحلیل حباب و زمان خرید/فروش
+   منطق: قیمت صندوق طلا فقط دنبال طلای جهانی و دلار است، پس تحلیل
+   تکنیکال روی آن بی‌معناست. تنها چیز قابل معامله «حباب» است:
+   اختلاف قیمت تابلو با NAV. و حباب را باید با عادت تاریخی خودِ
+   صندوق سنجید، نه با صفر.
+   ═══════════════════════════════════════════════════════════════════ */
+const GOLD_DEF = [
+  { id: 'ayar', name: 'عیار', full: 'صندوق طلای عیار مفید', ins: '34144395039913458' },
+  { id: 'mesghal', name: 'مثقال', full: 'صندوق طلای زرین آگاه', ins: '32469128621155736' },
+];
+let gold = load('gold', { recs: {}, pos: {} });
+const goldRecs = id => gold.recs[id] || [];
+
+function goldSave() { save('gold', gold); }
+
+/* افزودن رکورد امروز (اگر برای امروز رکوردی هست، جایگزین می‌شود) */
+function goldPush(id, price, nav) {
+  if (!(price > 0) || !(nav > 0)) return false;
+  const day = new Date().toDateString();
+  const arr = gold.recs[id] = gold.recs[id] || [];
+  const same = arr.find(r => new Date(r.t).toDateString() === day);
+  if (same) { same.price = price; same.nav = nav; }
+  else arr.push({ t: Date.now(), price, nav });
+  gold.recs[id] = arr.slice(-180);
+  goldSave();
+  return true;
+}
+
+/* تحلیل یک صندوق */
+function goldAnalyze(f) {
+  const rs = goldRecs(f.id);
+  if (!rs.length) return { empty: true };
+  const last = rs[rs.length - 1];
+  const bub = r => (r.price / r.nav - 1) * 100;
+  const b = bub(last);
+  const hist = rs.map(bub);
+
+  const mean = hist.reduce((s, x) => s + x, 0) / hist.length;
+  const sd = Math.sqrt(hist.reduce((s, x) => s + (x - mean) ** 2, 0) / hist.length) || 0.0001;
+  const z = (b - mean) / sd;
+  const lo = Math.min(...hist), hi = Math.max(...hist);
+
+  // روند خود طلا از روی NAV
+  const navs = rs.map(r => r.nav);
+  const ma = (a, n) => a.length < n ? null : a.slice(-n).reduce((s, x) => s + x, 0) / n;
+  const m5 = ma(navs, 5), m20 = ma(navs, 20);
+  const navChg = navs.length > 1 ? (navs[navs.length - 1] / navs[navs.length - 2] - 1) * 100 : 0;
+  let trend = 'flat';
+  if (m5 && m20) trend = m5 > m20 * 1.003 ? 'up' : m5 < m20 * 0.997 ? 'down' : 'flat';
+  else if (navs.length > 2) trend = navs[navs.length - 1] > navs[0] ? 'up' : 'down';
+
+  const enough = rs.length >= 8;
+  let lvl;                                   // ۰ عالی … ۴ بد
+  if (enough) lvl = z <= -1 ? 0 : z <= -0.3 ? 1 : z < 0.8 ? 2 : z < 1.5 ? 3 : 4;
+  else lvl = b <= 0.3 ? 1 : b < 1.5 ? 2 : b < 2.5 ? 3 : 4;
+  if (trend === 'down' && lvl < 4) lvl++;     // روند نزولی طلا یک پله تنزل
+
+  const VER = [
+    { t: '🟢 وقت خرید', c: 'up', d: 'حباب نسبت به عادت خودِ این صندوق پایین است.' },
+    { t: '🔵 مناسب خرید', c: 'up', d: 'حباب کمتر از میانگین است؛ ورود منطقی است.' },
+    { t: '⚪ عادی', c: 'mu', d: 'حباب در محدوده‌ی همیشگی است؛ عجله لازم نیست.' },
+    { t: '🟡 گران است', c: 'wa', d: 'حباب بالاتر از عادت این صندوق است؛ صبر کن.' },
+    { t: '🔴 نخر / وقت فروش', c: 'dn', d: 'حباب خیلی بالاست؛ ریسک تخلیه‌ی حباب زیاد است.' },
+  ];
+  return {
+    empty: false, n: rs.length, enough, price: last.price, nav: last.nav,
+    bub: b, mean, sd, z, lo, hi, trend, navChg, hist, recs: rs,
+    lvl, ver: VER[lvl],
+  };
+}
+
+function goldTrendTxt(t) {
+  return t === 'up' ? '📈 صعودی' : t === 'down' ? '📉 نزولی' : '➖ خنثی';
+}
+
+/* نمودار کوچک حباب با نوار میانگین ±۱ انحراف معیار */
+function goldChart(a) {
+  const h = a.hist;
+  if (h.length < 2) return '<div class="muted" style="font-size:12px">برای نمودار حداقل ۲ روز داده لازم است.</div>';
+  const W = 300, H = 74, pad = 4;
+  const lo = Math.min(...h, a.mean - a.sd), hi = Math.max(...h, a.mean + a.sd);
+  const rng = (hi - lo) || 1;
+  const x = i => pad + i / (h.length - 1) * (W - pad * 2);
+  const y = v => pad + (1 - (v - lo) / rng) * (H - pad * 2);
+  const pts = h.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  const band = `<rect x="${pad}" y="${y(a.mean + a.sd).toFixed(1)}" width="${W - pad * 2}"
+    height="${Math.abs(y(a.mean - a.sd) - y(a.mean + a.sd)).toFixed(1)}"
+    fill="rgba(168,85,247,.14)"/>`;
+  const last = h[h.length - 1];
+  return `<svg class="gsvg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+    ${band}
+    <line x1="${pad}" x2="${W - pad}" y1="${y(a.mean).toFixed(1)}" y2="${y(a.mean).toFixed(1)}"
+      stroke="#c084fc" stroke-width="1" stroke-dasharray="4 3" opacity=".8"/>
+    <polyline points="${pts}" fill="none" stroke="#f0eaff" stroke-width="1.6"/>
+    <circle cx="${x(h.length - 1).toFixed(1)}" cy="${y(last).toFixed(1)}" r="3.2"
+      fill="${last > a.mean ? '#fb5a6d' : '#34d399'}"/>
+  </svg>
+  <div class="glegend"><span>کمینه ${a.lo.toFixed(2)}٪</span>
+    <span>میانگین ${a.mean.toFixed(2)}٪</span><span>بیشینه ${a.hi.toFixed(2)}٪</span></div>`;
+}
+
+function renderGold() {
+  const cards = GOLD_DEF.map(f => {
+    const a = goldAnalyze(f);
+    const pos = gold.pos[f.id];
+    if (a.empty) return `<section class="card pad gcard">
+      <div class="gtop"><b>${f.name}</b><span class="muted">${f.full}</span></div>
+      <p class="muted">هنوز داده‌ای ثبت نشده. دکمه‌ی «ثبت دستی قیمت امروز» را بزن.</p>
+      <div class="grow"><input type="number" id="gp_${f.id}" placeholder="قیمت تابلو (ریال)">
+        <input type="number" id="gn_${f.id}" placeholder="NAV ابطال (ریال)">
+        <button class="btn" data-gsave="${f.id}">ثبت</button></div>
+    </section>`;
+
+    let sell = '';
+    if (pos) {
+      const pl = (a.price / pos.price - 1) * 100;
+      const doSell = a.lvl >= 4 || (a.lvl === 3 && pl > 0) || (a.trend === 'down' && pl > 2);
+      sell = `<div class="advice ${doSell ? 'ad-sell' : 'ad-hold'}">
+        ${doSell ? '🔔 پیشنهاد فروش' : '💼 نگه دار'} —
+        ${pos.units} واحد از ${fmt(pos.price)} · سود/زیان <b class="${pl >= 0 ? 'up' : 'dn'}">${pct(pl)}</b>
+        <br><span class="muted">${doSell
+          ? (a.lvl >= 4 ? 'حباب به سقف تاریخی خودش نزدیک شده — فروش در حباب بالا یعنی گرفتن سودِ اضافه روی طلا.'
+             : 'حباب بالا رفته و در سود هستی؛ خروج منطقی است.')
+          : 'حباب هنوز در محدوده‌ی عادی است؛ دلیلی برای خروج نیست.'}</span>
+        <button class="btn" data-gclose="${f.id}" style="margin-top:8px">فروختم</button></div>`;
+    }
+
+    return `<section class="card pad gcard lvl${a.lvl}">
+      <div class="gtop">
+        <b>${f.name}</b><span class="muted">${f.full}</span>
+        <span class="gver ${a.ver.c}">${a.ver.t}</span>
+      </div>
+      <div class="gnums">
+        <div><span>قیمت تابلو</span><b>${fmt(a.price)}</b></div>
+        <div><span>NAV ابطال</span><b>${fmt(a.nav)}</b></div>
+        <div><span>حباب امروز</span><b class="${a.bub >= 0 ? 'dn' : 'up'}">${a.bub >= 0 ? '+' : ''}${a.bub.toFixed(2)}٪</b></div>
+        <div><span>میانگین حباب</span><b>${a.mean.toFixed(2)}٪</b></div>
+        <div><span>فاصله از عادت</span><b class="${a.z <= 0 ? 'up' : 'dn'}">${a.z >= 0 ? '+' : ''}${a.z.toFixed(2)}σ</b></div>
+        <div><span>روند طلا</span><b>${goldTrendTxt(a.trend)}</b></div>
+      </div>
+      ${goldChart(a)}
+      <p class="gnote">${a.ver.d}
+        ${!a.enough ? `<br>⚠️ فقط ${a.n} روز داده — تا ۱۰ روز دیگر تحلیل دقیق‌تر می‌شود.` : ''}
+        ${a.trend === 'down' ? '<br>📉 روند خود طلا نزولی است؛ حتی حباب کم هم ورود را تضمین نمی‌کند.' : ''}</p>
+      ${sell}
+      ${!pos ? `<div class="grow"><input type="number" id="gu_${f.id}" placeholder="تعداد واحد خریدم">
+        <button class="btn buy" data-gbuy="${f.id}">✅ خریدم</button></div>` : ''}
+      <div class="grow"><input type="number" id="gp_${f.id}" placeholder="قیمت تابلو">
+        <input type="number" id="gn_${f.id}" placeholder="NAV ابطال">
+        <button class="btn" data-gsave="${f.id}">بروزرسانی</button></div>
+    </section>`;
+  }).join('');
+
+  $('#goldCards').innerHTML = cards;
+
+  // کدام صندوق الان بهتر است؟
+  const A = GOLD_DEF.map(f => ({ f, a: goldAnalyze(f) })).filter(x => !x.a.empty);
+  if (A.length === 2) {
+    const [x, y] = A.sort((p, q) => (p.a.enough && q.a.enough ? p.a.z - q.a.z : p.a.bub - q.a.bub));
+    const diff = (y.a.bub - x.a.bub).toFixed(2);
+    $('#goldVerdict').innerHTML = `<div class="gpick">
+      🏆 بین این دو، الان <b>${x.f.name}</b> گزینه‌ی بهتری است —
+      حبابش ${diff}٪ کمتر از ${y.f.name} است${x.a.enough ? ` و ${Math.abs(x.a.z).toFixed(1)}σ ${x.a.z <= 0 ? 'زیر' : 'بالای'} عادت خودش` : ''}.
+      <span class="muted">هر دو صندوق یک دارایی دارند (طلا)، پس ارزان‌تر بودن نسبت به NAV تنها مزیت واقعی است.</span>
+    </div>`;
+  } else $('#goldVerdict').innerHTML = '';
+
+  $$('[data-gsave]').forEach(b => b.onclick = () => {
+    const id = b.dataset.gsave;
+    const p = +$('#gp_' + id).value, n = +$('#gn_' + id).value;
+    if (!goldPush(id, p, n)) return alert('قیمت و NAV را درست وارد کن');
+    renderGold();
+  });
+  $$('[data-gbuy]').forEach(b => b.onclick = () => {
+    const id = b.dataset.gbuy, u = +$('#gu_' + id).value;
+    const a = goldAnalyze(GOLD_DEF.find(f => f.id === id));
+    if (!(u > 0) || a.empty) return alert('تعداد واحد را وارد کن');
+    gold.pos[id] = { units: u, price: a.price, at: Date.now() };
+    goldSave(); renderGold();
+  });
+  $$('[data-gclose]').forEach(b => b.onclick = () => {
+    delete gold.pos[b.dataset.gclose]; goldSave(); renderGold();
+  });
+}
+
+/* تلاش برای دریافت خودکار از TSETMC — اگر مرورگر اجازه ندهد، حالت دستی */
+async function goldFetch() {
+  const st = $('#goldStatus');
+  st.textContent = 'در حال تلاش برای اتصال به TSETMC…';
+  let ok = 0, fail = 0;
+  for (const f of GOLD_DEF) {
+    try {
+      const base = 'https://cdn.tsetmc.com/api';
+      const [pr, nv] = await Promise.all([
+        fetch(`${base}/ClosingPrice/GetClosingPriceInfo/${f.ins}`).then(r => r.json()),
+        fetch(`${base}/Fund/GetETFByInsCode/${f.ins}`).then(r => r.json()).catch(() => null),
+      ]);
+      const price = pr?.closingPriceInfo?.pClosing || pr?.closingPriceInfo?.pDrCotVal;
+      const nav = nv?.etf?.nav || nv?.etfByInsCode?.nav;
+      if (price && nav) { goldPush(f.id, +price, +nav); ok++; } else fail++;
+    } catch { fail++; }
+  }
+  st.textContent = ok
+    ? `✅ ${ok} صندوق بروز شد${fail ? ` · ${fail} مورد ناموفق` : ''}`
+    : '⚠️ مرورگر اجازه‌ی اتصال مستقیم به TSETMC را نداد (CORS). اعداد را دستی وارد کن — از سایت TSETMC یا اپ کارگزاری.';
+  renderGold();
+}
