@@ -1,0 +1,811 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>کتابخانه‌ی من | آرمان ناصری</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Playfair+Display:ital,wght@1,900&display=swap" rel="stylesheet">
+<style>
+/* ═══ کتابخانه‌ی من — تم شیشه‌ای بنفش–مشکی ═══ */
+:root{
+  --bg:#07060d; --bg2:#0d0a16;
+  --card:rgba(30,20,52,.44); --card2:rgba(42,28,70,.55);
+  --line:rgba(168,120,255,.16); --line2:rgba(168,120,255,.30);
+  --tx:#f0eaff; --mu:#a394c4;
+  --ac:#a855f7; --ac2:#7c3aed;
+  --gr:#34d399; --rd:#fb5a6d; --or:#fbbf24; --pu:#c084fc;
+  --shadow:0 12px 40px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.03) inset;
+  --glow:0 0 28px rgba(168,85,247,.22);
+  --blur:blur(18px) saturate(140%);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  background:
+    radial-gradient(900px 520px at 85% -8%, rgba(124,58,237,.30) 0%, transparent 62%),
+    radial-gradient(760px 480px at 8% 12%, rgba(168,85,247,.16) 0%, transparent 58%),
+    radial-gradient(1000px 700px at 50% 110%, rgba(88,28,135,.22) 0%, transparent 60%),
+    linear-gradient(180deg,#0a0713 0%, var(--bg) 100%);
+  background-attachment:fixed;
+  color:var(--tx);font-family:system-ui,'Segoe UI',Tahoma,sans-serif;
+  line-height:1.9;padding-bottom:60px;min-height:100vh;
+}
+h1,h2,h3{margin:0}
+.muted{color:var(--mu);font-size:13px}
+.up{color:var(--gr)}.dn{color:var(--rd)}.wa{color:var(--or)}.mu{color:var(--mu)}
+
+/* ── هدر ── */
+.topbar{display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;
+  padding:14px 16px;background:rgba(16,10,30,.62);backdrop-filter:var(--blur);
+  -webkit-backdrop-filter:var(--blur);border-bottom:1px solid var(--line);
+  position:sticky;top:0;z-index:40;box-shadow:0 6px 30px rgba(0,0,0,.45)}
+.brand{display:flex;gap:11px;align-items:center}
+.logo{font-size:26px}
+.topbar h1{font-size:18px;display:flex;align-items:center;flex-wrap:wrap}
+.by{color:var(--mu);font-size:11.5px}
+.market{display:flex;gap:8px;flex-wrap:wrap}
+.mk{background:var(--card);border:1px solid var(--line);border-radius:13px;
+  padding:5px 12px;min-width:92px;backdrop-filter:var(--blur)}
+.mk span{display:block;color:var(--mu);font-size:10.5px;line-height:1.5}
+.mk b{font-size:14px;line-height:1.6}
+
+/* ── امضا ── */
+.sig{
+  font-family:'Cinzel Decorative','Playfair Display',Georgia,serif;
+  font-weight:900;font-size:19px;line-height:1;letter-spacing:.06em;text-transform:uppercase;
+  background:linear-gradient(160deg,#fdf4ff 0%,#e9d5ff 18%,var(--pu) 42%,var(--ac2) 58%,#d8b4fe 76%,#fbf5ff 100%);
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:transparent;
+  direction:ltr;display:inline-flex;align-items:center;gap:9px;
+  margin-inline-start:12px;padding-inline:13px;position:relative;top:1px;
+  box-shadow:inset 1px 0 0 0 rgba(196,132,252,.28);
+  filter:drop-shadow(0 1px 0 rgba(0,0,0,.6)) drop-shadow(0 0 16px rgba(168,85,247,.5));
+  animation:sigGlow 4.5s ease-in-out infinite;
+}
+.sig::before,.sig::after{content:'❖';-webkit-text-fill-color:var(--pu);color:var(--pu);
+  font-family:Georgia,serif;font-size:11px;font-weight:400;opacity:.85;
+  text-shadow:0 0 10px rgba(196,132,252,.8)}
+@keyframes sigGlow{
+  0%,100%{filter:drop-shadow(0 1px 0 rgba(0,0,0,.6)) drop-shadow(0 0 13px rgba(168,85,247,.42))}
+  50%{filter:drop-shadow(0 1px 0 rgba(0,0,0,.6)) drop-shadow(0 0 22px rgba(216,180,254,.8))}
+}
+
+/* ── تب‌ها ── */
+.tabs{display:flex;gap:6px;padding:12px 16px 0;overflow-x:auto}
+.tab{background:var(--card);border:1px solid var(--line);color:var(--mu);
+  border-radius:14px 14px 0 0;padding:9px 16px;font:inherit;font-size:13.5px;
+  cursor:pointer;white-space:nowrap;backdrop-filter:var(--blur);transition:.18s}
+.tab:hover{color:var(--tx);border-color:var(--line2)}
+.tab.on{background:linear-gradient(180deg,rgba(168,85,247,.22),var(--card2));color:#fff;
+  border-color:var(--line2);border-bottom-color:transparent;
+  box-shadow:inset 0 2px 0 var(--ac),0 -4px 20px rgba(168,85,247,.25)}
+.badge{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;border-radius:99px;
+  padding:0 7px;font-size:11px;margin-right:4px;box-shadow:var(--glow)}
+
+.page{display:none;padding:16px;max-width:1280px;margin:0 auto}
+.page.on{display:block}
+.empty{text-align:center;color:var(--mu);padding:40px 16px;font-size:14px}
+
+/* ── کنترل‌ها ── */
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.seg{display:flex;background:var(--card);border:1px solid var(--line);border-radius:14px;
+  overflow:hidden;backdrop-filter:var(--blur)}
+.seg button{background:none;border:none;color:var(--mu);padding:8px 14px;font:inherit;
+  font-size:13px;cursor:pointer}
+.seg button:hover{color:var(--tx)}
+.seg button.on{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff}
+.btn{background:var(--card);border:1px solid var(--line);color:var(--tx);border-radius:14px;
+  padding:9px 16px;font:inherit;font-size:13.5px;cursor:pointer;transition:.18s;
+  backdrop-filter:var(--blur)}
+.btn:hover{border-color:var(--line2);box-shadow:var(--glow);transform:translateY(-1px)}
+.btn.primary{background:linear-gradient(135deg,var(--ac),var(--ac2));border-color:transparent;
+  color:#fff;font-weight:600;box-shadow:0 6px 22px rgba(124,58,237,.42)}
+.btn.buy{background:linear-gradient(135deg,#34d399,#10b981);border-color:transparent;
+  color:#04140a;font-weight:700}
+.btn.danger{background:rgba(90,20,32,.4);border-color:rgba(251,90,109,.35);color:#ff9a9a}
+.btn.sm{padding:5px 11px;font-size:12.5px;border-radius:11px}
+.btnrow{display:flex;gap:9px;flex-wrap:wrap;margin-top:10px}
+input,select,textarea{background:rgba(168,120,255,.08);border:1px solid var(--line);
+  color:var(--tx);border-radius:11px;padding:9px 12px;font:inherit;font-size:13.5px}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--ac);
+  box-shadow:0 0 0 3px rgba(168,85,247,.18)}
+input[type=search]{flex:1;min-width:180px}
+textarea{width:100%;resize:vertical;line-height:1.9}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:7px 0;border-top:1px solid var(--line)}
+.row:first-of-type{border-top:none}
+.row label{font-size:13.5px;color:var(--mu)}
+.row input,.row select{width:150px}
+
+/* ── کارت ── */
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;
+  box-shadow:var(--shadow);backdrop-filter:var(--blur);position:relative;overflow:hidden}
+.card::before{content:'';position:absolute;inset:0 0 auto;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(196,132,252,.55),transparent)}
+.card.pad{padding:16px;margin-bottom:14px}
+.card h3{font-size:15.5px;margin-bottom:10px}
+
+/* ── شبکه‌ی کتاب‌ها ── */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:13px}
+.book{padding:14px;cursor:pointer;transition:.18s;display:flex;gap:12px}
+.book:hover{border-color:var(--line2);transform:translateY(-3px);
+  box-shadow:var(--shadow),0 0 34px rgba(168,85,247,.28)}
+.cover{width:54px;height:76px;border-radius:9px;display:grid;place-items:center;
+  font-size:27px;flex:0 0 auto;border:1px solid rgba(255,255,255,.10);
+  box-shadow:inset -6px 0 12px rgba(0,0,0,.35),0 4px 14px rgba(0,0,0,.4);position:relative}
+.cover::after{content:'';position:absolute;inset-inline-start:5px;top:0;bottom:0;width:2px;
+  background:rgba(0,0,0,.28)}
+.bmeta{flex:1;min-width:0}
+.bmeta h4{margin:0;font-size:15px;line-height:1.6;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.bmeta .au{color:var(--mu);font-size:12.5px}
+.tags{display:flex;gap:5px;flex-wrap:wrap;margin:5px 0 7px}
+.tag{font-size:11px;padding:1px 8px;border-radius:99px;background:rgba(168,120,255,.13);
+  border:1px solid var(--line);color:var(--mu)}
+.tag.st-reading{color:var(--pu);border-color:var(--line2);background:rgba(168,85,247,.16)}
+.tag.st-done{color:var(--gr);border-color:rgba(52,211,153,.35);background:rgba(52,211,153,.13)}
+.tag.st-want{color:var(--or);border-color:rgba(251,191,36,.3);background:rgba(251,191,36,.10)}
+.tag.st-drop{color:var(--rd);border-color:rgba(251,90,109,.3);background:rgba(251,90,109,.10)}
+.pbar{height:7px;background:rgba(255,255,255,.07);border-radius:99px;overflow:hidden}
+.pbar i{display:block;height:100%;border-radius:99px;
+  background:linear-gradient(90deg,var(--ac2),var(--pu));box-shadow:0 0 12px rgba(168,85,247,.5)}
+.pnum{display:flex;justify-content:space-between;font-size:11.5px;color:var(--mu);margin-top:4px}
+
+/* ── کشو ── */
+.scrim{position:fixed;inset:0;background:rgba(7,4,16,.68);backdrop-filter:blur(6px);
+  opacity:0;pointer-events:none;transition:.2s;z-index:50}
+.scrim.on{opacity:1;pointer-events:auto}
+.drawer{position:fixed;inset:0 0 0 auto;width:min(480px,100%);z-index:60;
+  background:linear-gradient(180deg,rgba(26,16,46,.94),rgba(10,7,19,.97));
+  backdrop-filter:var(--blur);border-right:1px solid var(--line2);
+  box-shadow:-20px 0 60px rgba(0,0,0,.6);transform:translateX(-100%);
+  transition:transform .25s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column}
+[dir=rtl] .drawer{transform:translateX(-100%)}
+.drawer.on{transform:none!important}
+.drhead{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;
+  padding:15px 16px;border-bottom:1px solid var(--line)}
+.drhead h2{font-size:17px;line-height:1.6}
+.drbody{padding:16px;overflow-y:auto;flex:1}
+
+/* ── فرم ── */
+.field{margin-bottom:11px}
+.field label{display:block;font-size:12.5px;color:var(--mu);margin-bottom:4px}
+.field input,.field select,.field textarea{width:100%}
+.f2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.emojis{display:flex;gap:6px;flex-wrap:wrap}
+.emojis button{font-size:19px;background:rgba(168,120,255,.08);border:1px solid var(--line);
+  border-radius:10px;width:40px;height:40px;cursor:pointer;transition:.15s}
+.emojis button.on{border-color:var(--ac);box-shadow:0 0 0 3px rgba(168,85,247,.2)}
+.colors{display:flex;gap:6px;flex-wrap:wrap}
+.colors button{width:30px;height:30px;border-radius:9px;border:2px solid transparent;cursor:pointer}
+.colors button.on{border-color:#fff;box-shadow:var(--glow)}
+
+/* ── پیشرفت در کشو ── */
+.prog{background:linear-gradient(180deg,rgba(60,38,100,.30),rgba(20,13,36,.30));
+  border:1px solid var(--line);border-radius:15px;padding:13px;margin-bottom:13px}
+.quick{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+.kv{display:flex;justify-content:space-between;font-size:13px;padding:3px 0}
+.kv span{color:var(--mu)}
+
+/* ── یادداشت‌ها ── */
+.note{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:12px 14px;
+  margin-bottom:10px;backdrop-filter:var(--blur);border-inline-start:3px solid var(--line2)}
+.note.t-quote{border-inline-start-color:var(--pu)}
+.note.t-idea{border-inline-start-color:var(--or)}
+.note.t-question{border-inline-start-color:#60a5fa}
+.note .q{font-size:14.5px;line-height:2;margin:0 0 6px}
+.note .q::before{content:'❝ ';color:var(--pu)}
+.note .cm{font-size:13px;color:#cbbfe4;border-top:1px dashed var(--line);padding-top:6px;margin-top:6px}
+.note .nfoot{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:8px;
+  font-size:11.5px;color:var(--mu)}
+.note .nfoot .sp{flex:1}
+.star{cursor:pointer;font-size:15px;background:none;border:none;padding:0}
+
+/* ── آمار ── */
+.scgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:9px;margin-bottom:14px}
+.scgrid div{background:linear-gradient(180deg,rgba(45,28,78,.40),rgba(14,9,26,.44));
+  border:1px solid var(--line);border-radius:15px;padding:12px 8px;text-align:center;
+  backdrop-filter:var(--blur)}
+.scgrid span{display:block;font-size:11.5px;color:var(--mu);margin-bottom:2px}
+.scgrid b{font-size:21px;display:block;line-height:1.5}
+.bars{display:flex;align-items:flex-end;gap:3px;height:120px;padding:8px;
+  background:rgba(10,6,20,.45);border:1px solid var(--line);border-radius:13px}
+.bars i{flex:1;border-radius:4px 4px 0 0;min-height:2px;
+  background:linear-gradient(180deg,var(--pu),var(--ac2));position:relative}
+.bars i.goal{box-shadow:0 0 12px rgba(52,211,153,.5);
+  background:linear-gradient(180deg,#6ee7b7,#10b981)}
+.bars i.zero{background:rgba(255,255,255,.07)}
+.barlbl{display:flex;justify-content:space-between;font-size:11px;color:var(--mu);margin-top:5px}
+.toprow{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
+.toprow:first-child{border-top:none}
+.toprow .pbar{flex:1}
+.sign{text-align:center;color:var(--mu);font-size:12.5px;padding:18px 0 4px}
+
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:rgba(255,255,255,.03)}
+::-webkit-scrollbar-thumb{background:linear-gradient(180deg,var(--ac),var(--ac2));
+  border-radius:99px;border:2px solid transparent;background-clip:content-box}
+::selection{background:rgba(168,85,247,.38);color:#fff}
+@media(max-width:560px){.sig{font-size:15px;margin-inline-start:8px;padding-inline:9px}
+  .f2{grid-template-columns:1fr}}
+
+</style>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📚</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">📚</span>
+    <div>
+      <h1>کتابخانه‌ی من <span class="sig">Arman Naseri</span></h1>
+      <span class="by">پیگیری مطالعه · یادداشت و هایلایت</span>
+    </div>
+  </div>
+  <div class="market">
+    <div class="mk"><span>در حال خواندن</span><b id="hReading">—</b></div>
+    <div class="mk"><span>تمام‌شده</span><b id="hDone">—</b></div>
+    <div class="mk"><span>این هفته</span><b id="hWeek">—</b></div>
+    <div class="mk"><span>روزهای پیاپی</span><b id="hStreak">—</b></div>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button class="tab on" data-tab="books">📚 کتاب‌ها</button>
+  <button class="tab" data-tab="notes">✍️ یادداشت‌ها <span class="badge" id="noteCount">0</span></button>
+  <button class="tab" data-tab="stats">📊 آمار</button>
+  <button class="tab" data-tab="set">⚙️ تنظیمات</button>
+</nav>
+
+<!-- ─────────── کتاب‌ها ─────────── -->
+<main class="page on" id="page-books">
+  <div class="controls">
+    <button class="btn primary" id="addBook">➕ کتاب جدید</button>
+    <div class="seg" id="statusSeg">
+      <button data-s="all" class="on">همه</button>
+      <button data-s="reading">در حال خواندن</button>
+      <button data-s="done">تمام‌شده</button>
+      <button data-s="want">می‌خواهم بخوانم</button>
+    </div>
+    <input type="search" id="search" placeholder="جستجوی عنوان یا نویسنده…">
+  </div>
+  <div id="bookGrid" class="grid"></div>
+  <p class="empty" id="booksEmpty">هنوز کتابی اضافه نکرده‌ای — با دکمه‌ی «کتاب جدید» شروع کن 📖</p>
+</main>
+
+<!-- ─────────── یادداشت‌ها ─────────── -->
+<main class="page" id="page-notes">
+  <div class="controls">
+    <div class="seg" id="noteSeg">
+      <button data-t="all" class="on">همه</button>
+      <button data-t="quote">❝ نقل‌قول</button>
+      <button data-t="idea">💡 ایده</button>
+      <button data-t="question">❓ سؤال</button>
+      <button data-t="fav">⭐ نشان‌شده</button>
+    </div>
+    <input type="search" id="noteSearch" placeholder="جستجو در یادداشت‌ها…">
+  </div>
+  <div id="noteList"></div>
+  <p class="empty" id="notesEmpty">هنوز یادداشتی ثبت نشده. وارد یک کتاب شو و جمله‌های مهمش را ذخیره کن ✍️</p>
+</main>
+
+<!-- ─────────── آمار ─────────── -->
+<main class="page" id="page-stats">
+  <div id="statCards"></div>
+  <section class="card pad">
+    <h3>📅 صفحه‌های ۳۰ روز اخیر</h3>
+    <div id="chart30"></div>
+  </section>
+  <section class="card pad">
+    <h3>🏆 پرخوانده‌ترین‌ها</h3>
+    <div id="topBooks"></div>
+  </section>
+</main>
+
+<!-- ─────────── تنظیمات ─────────── -->
+<main class="page" id="page-set">
+  <section class="card pad">
+    <h3>🎯 هدف مطالعه</h3>
+    <div class="row"><label>هدف روزانه (صفحه)</label><input type="number" id="s_goal" step="5" value="20"></div>
+    <p class="muted">هدف کوچک و قابل‌دستیابی بهتر از هدف بزرگِ رهاشده است. ۲۰ صفحه در روز یعنی حدود ۲۴ کتاب در سال.</p>
+  </section>
+  <section class="card pad">
+    <h3>💾 پشتیبان</h3>
+    <p class="muted">همه چیز فقط روی همین مرورگر ذخیره می‌شود. برای انتقال به دستگاه دیگر، فایل پشتیبان بگیر.</p>
+    <div class="btnrow">
+      <button class="btn" id="exportBtn">⬇️ خروجی JSON</button>
+      <button class="btn" id="importBtn">⬆️ بازگردانی</button>
+      <button class="btn danger" id="resetBtn">🗑 پاک‌کردن همه</button>
+    </div>
+    <input type="file" id="importFile" accept="application/json" hidden>
+  </section>
+  <footer class="sign">✍️ طراحی و توسعه توسط آرمان ناصری</footer>
+</main>
+
+<!-- ─────────── کشوی کتاب ─────────── -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="drhead">
+    <div><h2 id="drTitle">—</h2><span class="muted" id="drSub">—</span></div>
+    <button class="btn" id="drClose">✕</button>
+  </div>
+  <div class="drbody" id="drBody"></div>
+</aside>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   📚 کتابخانه‌ی من — پیگیری مطالعه، پیشرفت و یادداشت‌برداری
+   ✍️ طراحی و توسعه توسط آرمان ناصری
+   ═══════════════════════════════════════════════════════════════════ */
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+
+const load = (k, d) => { try { return JSON.parse(localStorage.getItem('rd_' + k)) ?? d; } catch { return d; } };
+const save = (k, v) => localStorage.setItem('rd_' + k, JSON.stringify(v));
+
+let books = load('books', []);
+let notes = load('notes', []);
+let sessions = load('sessions', []);
+let CFG = { goal: 20, ...load('cfg', {}) };
+
+let filter = 'all', noteFilter = 'all', query = '', noteQuery = '', openId = null;
+
+const EMOJIS = ['📕', '📗', '📘', '📙', '📔', '📓', '🧠', '💼', '🔮', '⚔️', '🧪', '🪐'];
+const COLORS = ['#7c3aed', '#a855f7', '#2563eb', '#059669', '#d97706', '#dc2626', '#0891b2', '#4b5563'];
+const STATUS = {
+  reading: { t: 'در حال خواندن', c: 'st-reading' },
+  done: { t: 'تمام شد', c: 'st-done' },
+  want: { t: 'می‌خواهم بخوانم', c: 'st-want' },
+  drop: { t: 'رها کردم', c: 'st-drop' },
+};
+const NTYPE = {
+  quote: { t: 'نقل‌قول', i: '❝' },
+  idea: { t: 'ایده', i: '💡' },
+  question: { t: 'سؤال', i: '❓' },
+};
+
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const fa = n => (n || 0).toLocaleString('fa-IR');
+const dayKey = t => new Date(t).toDateString();
+const faDate = t => new Date(t).toLocaleDateString('fa-IR', { month: 'long', day: 'numeric' });
+
+/* ─────────── آمار پایه ─────────── */
+function pagesOn(day) {
+  return sessions.filter(s => dayKey(s.t) === day).reduce((a, s) => a + s.pages, 0);
+}
+function weekPages() {
+  const from = Date.now() - 7 * 864e5;
+  return sessions.filter(s => s.t >= from).reduce((a, s) => a + s.pages, 0);
+}
+/* روزهای پیاپی مطالعه — امروز یا دیروز شروع می‌شود تا نیمه‌شب رشته را نشکند */
+function streak() {
+  const days = new Set(sessions.map(s => dayKey(s.t)));
+  let n = 0, d = new Date();
+  if (!days.has(d.toDateString())) d.setDate(d.getDate() - 1);
+  while (days.has(d.toDateString())) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+
+function renderHeader() {
+  $('#hReading').textContent = fa(books.filter(b => b.status === 'reading').length);
+  $('#hDone').textContent = fa(books.filter(b => b.status === 'done').length);
+  $('#hWeek').textContent = fa(weekPages()) + ' ص';
+  const s = streak();
+  $('#hStreak').textContent = s ? fa(s) + ' روز 🔥' : '—';
+  $('#noteCount').textContent = fa(notes.length);
+}
+
+/* ─────────── کتاب‌ها ─────────── */
+function pct(b) {
+  if (!b.pages) return 0;
+  return Math.min(100, Math.round(b.page / b.pages * 100));
+}
+
+function bookCard(b) {
+  const p = pct(b), st = STATUS[b.status] || STATUS.want;
+  const nn = notes.filter(n => n.bookId === b.id).length;
+  return `<article class="card book" data-id="${b.id}">
+    <div class="cover" style="background:linear-gradient(145deg,${b.color},#11091f)">${b.emoji}</div>
+    <div class="bmeta">
+      <h4>${esc(b.title)}</h4>
+      <div class="au">${esc(b.author || '—')}</div>
+      <div class="tags">
+        <span class="tag ${st.c}">${st.t}</span>
+        ${b.format ? `<span class="tag">${b.format}</span>` : ''}
+        ${nn ? `<span class="tag">✍️ ${fa(nn)}</span>` : ''}
+      </div>
+      <div class="pbar"><i style="width:${p}%"></i></div>
+      <div class="pnum"><span>${fa(b.page)} از ${fa(b.pages)} صفحه</span><b>${fa(p)}٪</b></div>
+    </div>
+  </article>`;
+}
+
+function renderBooks() {
+  let list = books.slice();
+  if (filter !== 'all') list = list.filter(b => b.status === filter);
+  if (query) {
+    const q = query.trim().toLowerCase();
+    list = list.filter(b => (b.title + ' ' + (b.author || '')).toLowerCase().includes(q));
+  }
+  const rank = { reading: 0, want: 1, done: 2, drop: 3 };
+  list.sort((a, b) => (rank[a.status] - rank[b.status]) || (b.touched || 0) - (a.touched || 0));
+
+  $('#bookGrid').innerHTML = list.map(bookCard).join('');
+  $('#booksEmpty').hidden = list.length > 0;
+  if (!list.length && books.length)
+    $('#booksEmpty').textContent = 'کتابی با این فیلتر پیدا نشد.';
+  $$('.book').forEach(el => el.onclick = () => openBook(el.dataset.id));
+  renderHeader();
+}
+
+/* ─────────── کشو: فرم افزودن/ویرایش ─────────── */
+function bookForm(b) {
+  const isNew = !b;
+  b = b || { emoji: '📘', color: COLORS[0], status: 'reading', format: 'کاغذی', pages: 200, page: 0 };
+  $('#drTitle').textContent = isNew ? 'کتاب جدید' : 'ویرایش کتاب';
+  $('#drSub').textContent = isNew ? 'اطلاعات پایه را وارد کن' : b.title;
+  $('#drBody').innerHTML = `
+    <div class="field"><label>عنوان کتاب *</label>
+      <input id="f_title" value="${esc(b.title || '')}" placeholder="مثلاً: اثر مرکب"></div>
+    <div class="field"><label>نویسنده</label>
+      <input id="f_author" value="${esc(b.author || '')}" placeholder="مثلاً: دارن هاردی"></div>
+    <div class="f2">
+      <div class="field"><label>تعداد کل صفحات</label>
+        <input type="number" id="f_pages" value="${b.pages || 200}" min="1"></div>
+      <div class="field"><label>الان صفحه‌ی چندم؟</label>
+        <input type="number" id="f_page" value="${b.page || 0}" min="0"></div>
+    </div>
+    <div class="f2">
+      <div class="field"><label>وضعیت</label>
+        <select id="f_status">${Object.entries(STATUS).map(([k, v]) =>
+          `<option value="${k}" ${b.status === k ? 'selected' : ''}>${v.t}</option>`).join('')}</select></div>
+      <div class="field"><label>قالب</label>
+        <select id="f_format">${['کاغذی', 'PDF', 'EPUB', 'TXT', 'صوتی'].map(f =>
+          `<option ${b.format === f ? 'selected' : ''}>${f}</option>`).join('')}</select></div>
+    </div>
+    <div class="field"><label>دسته‌بندی</label>
+      <input id="f_cat" value="${esc(b.cat || '')}" placeholder="مثلاً: مالی، روان‌شناسی، رمان"></div>
+    <div class="field"><label>جلد</label>
+      <div class="emojis" id="f_emoji">${EMOJIS.map(e =>
+        `<button data-e="${e}" class="${b.emoji === e ? 'on' : ''}">${e}</button>`).join('')}</div></div>
+    <div class="field"><label>رنگ جلد</label>
+      <div class="colors" id="f_color">${COLORS.map(c =>
+        `<button data-c="${c}" style="background:linear-gradient(145deg,${c},#11091f)"
+          class="${b.color === c ? 'on' : ''}"></button>`).join('')}</div></div>
+    <div class="btnrow">
+      <button class="btn primary" id="f_save" style="flex:1">${isNew ? '➕ افزودن' : '💾 ذخیره'}</button>
+      ${isNew ? '' : '<button class="btn danger" id="f_del">🗑 حذف</button>'}
+    </div>`;
+
+  let emoji = b.emoji, color = b.color;
+  $$('#f_emoji button').forEach(x => x.onclick = () => {
+    emoji = x.dataset.e;
+    $$('#f_emoji button').forEach(y => y.classList.toggle('on', y === x));
+  });
+  $$('#f_color button').forEach(x => x.onclick = () => {
+    color = x.dataset.c;
+    $$('#f_color button').forEach(y => y.classList.toggle('on', y === x));
+  });
+  $('#f_save').onclick = () => {
+    const title = $('#f_title').value.trim();
+    if (!title) return alert('عنوان کتاب را وارد کن');
+    const data = {
+      title, author: $('#f_author').value.trim(),
+      pages: Math.max(1, +$('#f_pages').value || 1),
+      page: Math.max(0, +$('#f_page').value || 0),
+      status: $('#f_status').value, format: $('#f_format').value,
+      cat: $('#f_cat').value.trim(), emoji, color, touched: Date.now(),
+    };
+    if (isNew) books.push({ id: uid(), added: Date.now(), ...data });
+    else Object.assign(books.find(x => x.id === b.id), data);
+    save('books', books); renderBooks(); renderNotes(); renderStats();
+    if (isNew) closeDrawer(); else openBook(b.id);
+  };
+  if (!isNew) $('#f_del').onclick = () => {
+    if (!confirm(`«${b.title}» و همه‌ی یادداشت‌هایش حذف شود؟`)) return;
+    books = books.filter(x => x.id !== b.id);
+    notes = notes.filter(n => n.bookId !== b.id);
+    sessions = sessions.filter(s => s.bookId !== b.id);
+    save('books', books); save('notes', notes); save('sessions', sessions);
+    closeDrawer(); renderBooks(); renderNotes(); renderStats();
+  };
+  openDrawer();
+}
+
+/* ─────────── کشو: صفحه‌ی کتاب ─────────── */
+function openBook(id) {
+  const b = books.find(x => x.id === id);
+  if (!b) return;
+  openId = id;
+  const p = pct(b), st = STATUS[b.status] || STATUS.want;
+  const my = notes.filter(n => n.bookId === id).sort((a, b2) => b2.t - a.t);
+  const ss = sessions.filter(s => s.bookId === id);
+  const total = ss.reduce((a, s) => a + s.pages, 0);
+  const days = new Set(ss.map(s => dayKey(s.t))).size;
+  const left = Math.max(0, b.pages - b.page);
+  const rate = days ? total / days : 0;
+  const eta = rate > 0 && left > 0 ? Math.ceil(left / rate) : null;
+
+  $('#drTitle').textContent = b.emoji + ' ' + b.title;
+  $('#drSub').textContent = `${b.author || '—'} · ${st.t}`;
+  $('#drBody').innerHTML = `
+    <div class="prog">
+      <div class="pbar"><i style="width:${p}%"></i></div>
+      <div class="pnum"><span>${fa(b.page)} از ${fa(b.pages)} صفحه</span><b>${fa(p)}٪</b></div>
+      <div class="quick">
+        <button class="btn sm" data-add="5">+۵ صفحه</button>
+        <button class="btn sm" data-add="10">+۱۰</button>
+        <button class="btn sm" data-add="20">+۲۰</button>
+        <button class="btn sm" data-add="50">+۵۰</button>
+        <input type="number" id="q_page" placeholder="صفحه‌ی فعلی" style="width:120px">
+        <button class="btn sm" id="q_set">ثبت</button>
+      </div>
+      ${b.status !== 'done' ? '<button class="btn buy" id="q_done" style="width:100%;margin-top:9px">✅ تمامش کردم</button>' : ''}
+    </div>
+
+    <div class="prog">
+      <div class="kv"><span>باقی‌مانده</span><b>${fa(left)} صفحه</b></div>
+      <div class="kv"><span>روزهای مطالعه</span><b>${fa(days)} روز</b></div>
+      <div class="kv"><span>میانگین روزانه</span><b>${fa(Math.round(rate))} صفحه</b></div>
+      <div class="kv"><span>تخمین پایان</span><b>${eta ? `حدود ${fa(eta)} روز دیگر` : '—'}</b></div>
+      ${b.cat ? `<div class="kv"><span>دسته</span><b>${esc(b.cat)}</b></div>` : ''}
+    </div>
+
+    <h3 style="font-size:15px;margin:16px 0 8px">✍️ یادداشت جدید</h3>
+    <div class="field">
+      <textarea id="n_text" rows="3" placeholder="جمله یا نقل‌قولی که می‌خواهی یادت بماند…"></textarea>
+    </div>
+    <div class="field">
+      <textarea id="n_note" rows="2" placeholder="برداشت خودت (اختیاری)…"></textarea>
+    </div>
+    <div class="f2">
+      <div class="field"><label>نوع</label>
+        <select id="n_type">${Object.entries(NTYPE).map(([k, v]) =>
+          `<option value="${k}">${v.i} ${v.t}</option>`).join('')}</select></div>
+      <div class="field"><label>صفحه</label>
+        <input type="number" id="n_page" value="${b.page}"></div>
+    </div>
+    <button class="btn primary" id="n_save" style="width:100%">💾 ذخیره‌ی یادداشت</button>
+
+    <h3 style="font-size:15px;margin:18px 0 8px">📝 یادداشت‌های این کتاب (${fa(my.length)})</h3>
+    <div id="bookNotes">${my.map(noteCard).join('') || '<p class="muted">هنوز یادداشتی نداری.</p>'}</div>
+
+    <button class="btn" id="b_edit" style="width:100%;margin-top:16px">✏️ ویرایش اطلاعات کتاب</button>`;
+
+  $$('[data-add]').forEach(x => x.onclick = () => addPages(id, +x.dataset.add));
+  $('#q_set').onclick = () => {
+    const v = +$('#q_page').value;
+    if (!(v >= 0)) return;
+    const diff = v - b.page;
+    if (diff > 0) logSession(id, diff);
+    b.page = Math.min(v, b.pages); b.touched = Date.now();
+    if (b.page >= b.pages) b.status = 'done';
+    save('books', books); renderBooks(); renderStats(); openBook(id);
+  };
+  if ($('#q_done')) $('#q_done').onclick = () => {
+    const diff = b.pages - b.page;
+    if (diff > 0) logSession(id, diff);
+    b.page = b.pages; b.status = 'done'; b.finished = Date.now(); b.touched = Date.now();
+    save('books', books); renderBooks(); renderStats(); openBook(id);
+  };
+  $('#n_save').onclick = () => {
+    const text = $('#n_text').value.trim();
+    if (!text) return alert('متن یادداشت خالی است');
+    notes.unshift({
+      id: uid(), bookId: id, t: Date.now(), text,
+      note: $('#n_note').value.trim(), type: $('#n_type').value,
+      page: +$('#n_page').value || 0, fav: false,
+    });
+    save('notes', notes); renderNotes(); openBook(id);
+  };
+  $('#b_edit').onclick = () => bookForm(b);
+  bindNoteActions();
+  openDrawer();
+}
+
+function addPages(id, n) {
+  const b = books.find(x => x.id === id);
+  if (!b) return;
+  const inc = Math.min(n, b.pages - b.page);
+  if (inc <= 0) return;
+  b.page += inc; b.touched = Date.now();
+  if (b.page >= b.pages) { b.status = 'done'; b.finished = Date.now(); }
+  logSession(id, inc);
+  save('books', books);
+  renderBooks(); renderStats(); openBook(id);
+}
+
+function logSession(bookId, pages) {
+  sessions.push({ id: uid(), bookId, t: Date.now(), pages });
+  save('sessions', sessions);
+}
+
+/* ─────────── یادداشت‌ها ─────────── */
+function noteCard(n) {
+  const b = books.find(x => x.id === n.bookId);
+  const ty = NTYPE[n.type] || NTYPE.quote;
+  return `<div class="note t-${n.type}" data-nid="${n.id}">
+    <p class="q">${esc(n.text)}</p>
+    ${n.note ? `<div class="cm">🧠 ${esc(n.note)}</div>` : ''}
+    <div class="nfoot">
+      <span>${ty.i} ${ty.t}</span>
+      ${b ? `<span>${b.emoji} ${esc(b.title)}</span>` : ''}
+      ${n.page ? `<span>ص ${fa(n.page)}</span>` : ''}
+      <span>${faDate(n.t)}</span>
+      <span class="sp"></span>
+      <button class="star" data-fav="${n.id}" title="نشان‌کردن">${n.fav ? '⭐' : '☆'}</button>
+      <button class="btn sm" data-copy="${n.id}">کپی</button>
+      <button class="btn sm" data-ndel="${n.id}">حذف</button>
+    </div>
+  </div>`;
+}
+
+function bindNoteActions() {
+  $$('[data-fav]').forEach(x => x.onclick = e => {
+    e.stopPropagation();
+    const n = notes.find(v => v.id === x.dataset.fav);
+    n.fav = !n.fav; save('notes', notes);
+    renderNotes(); if (openId) openBook(openId);
+  });
+  $$('[data-copy]').forEach(x => x.onclick = e => {
+    e.stopPropagation();
+    const n = notes.find(v => v.id === x.dataset.copy);
+    const b = books.find(v => v.id === n.bookId);
+    const txt = `«${n.text}»${n.note ? `\n— ${n.note}` : ''}\n📖 ${b ? b.title : ''}${n.page ? ` · ص ${n.page}` : ''}`;
+    navigator.clipboard?.writeText(txt);
+    x.textContent = '✓ کپی شد';
+    setTimeout(() => { x.textContent = 'کپی'; }, 1400);
+  });
+  $$('[data-ndel]').forEach(x => x.onclick = e => {
+    e.stopPropagation();
+    if (!confirm('این یادداشت حذف شود؟')) return;
+    notes = notes.filter(v => v.id !== x.dataset.ndel);
+    save('notes', notes); renderNotes(); if (openId) openBook(openId);
+  });
+}
+
+function renderNotes() {
+  let list = notes.slice();
+  if (noteFilter === 'fav') list = list.filter(n => n.fav);
+  else if (noteFilter !== 'all') list = list.filter(n => n.type === noteFilter);
+  if (noteQuery) {
+    const q = noteQuery.trim().toLowerCase();
+    list = list.filter(n => {
+      const b = books.find(x => x.id === n.bookId);
+      return (n.text + ' ' + (n.note || '') + ' ' + (b ? b.title : '')).toLowerCase().includes(q);
+    });
+  }
+  $('#noteList').innerHTML = list.map(noteCard).join('');
+  $('#notesEmpty').hidden = list.length > 0;
+  if (!list.length && notes.length) $('#notesEmpty').textContent = 'یادداشتی با این فیلتر پیدا نشد.';
+  bindNoteActions();
+  renderHeader();
+}
+
+/* ─────────── آمار ─────────── */
+function renderStats() {
+  const done = books.filter(b => b.status === 'done');
+  const totalPages = sessions.reduce((a, s) => a + s.pages, 0);
+  const today = pagesOn(new Date().toDateString());
+  const days = new Set(sessions.map(s => dayKey(s.t))).size;
+  const avg = days ? Math.round(totalPages / days) : 0;
+
+  $('#statCards').innerHTML = `<div class="scgrid">
+    <div><span>کل کتاب‌ها</span><b>${fa(books.length)}</b></div>
+    <div><span>تمام‌شده</span><b class="up">${fa(done.length)}</b></div>
+    <div><span>امروز</span><b class="${today >= CFG.goal ? 'up' : ''}">${fa(today)}</b></div>
+    <div><span>هدف روزانه</span><b>${fa(CFG.goal)}</b></div>
+    <div><span>این هفته</span><b>${fa(weekPages())}</b></div>
+    <div><span>کل صفحات</span><b>${fa(totalPages)}</b></div>
+    <div><span>میانگین روزانه</span><b>${fa(avg)}</b></div>
+    <div><span>روزهای پیاپی</span><b class="${streak() ? 'up' : ''}">${fa(streak())} 🔥</b></div>
+  </div>`;
+
+  // نمودار ۳۰ روز
+  const arr = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    arr.push({ d, v: pagesOn(d.toDateString()) });
+  }
+  const max = Math.max(CFG.goal, ...arr.map(x => x.v)) || 1;
+  $('#chart30').innerHTML = `
+    <div class="bars">${arr.map(x => `<i class="${x.v === 0 ? 'zero' : x.v >= CFG.goal ? 'goal' : ''}"
+      style="height:${Math.max(2, x.v / max * 100)}%"
+      title="${x.d.toLocaleDateString('fa-IR')} — ${fa(x.v)} صفحه"></i>`).join('')}</div>
+    <div class="barlbl"><span>${faDate(arr[0].d)}</span>
+      <span>سبز = به هدف رسیدی</span><span>امروز</span></div>`;
+
+  // پرخوانده‌ترین‌ها
+  const by = {};
+  sessions.forEach(s => { by[s.bookId] = (by[s.bookId] || 0) + s.pages; });
+  const top = Object.entries(by).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const mx = top.length ? top[0][1] : 1;
+  $('#topBooks').innerHTML = top.length ? top.map(([id, v]) => {
+    const b = books.find(x => x.id === id);
+    if (!b) return '';
+    return `<div class="toprow"><span>${b.emoji}</span>
+      <span style="min-width:90px;font-size:13px">${esc(b.title)}</span>
+      <div class="pbar"><i style="width:${v / mx * 100}%"></i></div>
+      <b style="font-size:13px">${fa(v)} ص</b></div>`;
+  }).join('') : '<p class="muted">هنوز صفحه‌ای ثبت نشده.</p>';
+}
+
+/* ─────────── کشو و تب ─────────── */
+function openDrawer() { $('#drawer').classList.add('on'); $('#scrim').classList.add('on'); }
+function closeDrawer() {
+  $('#drawer').classList.remove('on'); $('#scrim').classList.remove('on'); openId = null;
+}
+function switchTab(name) {
+  $$('.tab').forEach(t => t.classList.toggle('on', t.dataset.tab === name));
+  $$('.page').forEach(p => p.classList.toggle('on', p.id === 'page-' + name));
+  if (name === 'stats') renderStats();
+}
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* ─────────── راه‌اندازی ─────────── */
+function init() {
+  $$('.tab').forEach(t => t.onclick = () => switchTab(t.dataset.tab));
+  $('#addBook').onclick = () => bookForm(null);
+  $('#drClose').onclick = closeDrawer;
+  $('#scrim').onclick = closeDrawer;
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
+
+  $$('#statusSeg button').forEach(b => b.onclick = () => {
+    $$('#statusSeg button').forEach(x => x.classList.remove('on'));
+    b.classList.add('on'); filter = b.dataset.s; renderBooks();
+  });
+  $$('#noteSeg button').forEach(b => b.onclick = () => {
+    $$('#noteSeg button').forEach(x => x.classList.remove('on'));
+    b.classList.add('on'); noteFilter = b.dataset.t; renderNotes();
+  });
+  $('#search').oninput = e => { query = e.target.value; renderBooks(); };
+  $('#noteSearch').oninput = e => { noteQuery = e.target.value; renderNotes(); };
+
+  $('#s_goal').value = CFG.goal;
+  $('#s_goal').onchange = e => {
+    CFG.goal = Math.max(1, +e.target.value || 20); save('cfg', CFG); renderStats();
+  };
+
+  $('#exportBtn').onclick = () => {
+    const blob = new Blob([JSON.stringify({ books, notes, sessions, cfg: CFG }, null, 2)],
+      { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'my-library-backup.json';
+    a.click();
+  };
+  $('#importBtn').onclick = () => $('#importFile').click();
+  $('#importFile').onchange = e => {
+    const f = e.target.files[0]; if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () => {
+      try {
+        const d = JSON.parse(rd.result);
+        if (d.books) books = d.books;
+        if (d.notes) notes = d.notes;
+        if (d.sessions) sessions = d.sessions;
+        if (d.cfg) CFG = { ...CFG, ...d.cfg };
+        save('books', books); save('notes', notes); save('sessions', sessions); save('cfg', CFG);
+        renderBooks(); renderNotes(); renderStats();
+        alert('✅ بازگردانی انجام شد');
+      } catch { alert('❌ فایل معتبر نیست'); }
+    };
+    rd.readAsText(f);
+  };
+  $('#resetBtn').onclick = () => {
+    if (!confirm('همه‌ی کتاب‌ها، یادداشت‌ها و آمار پاک شود؟ این کار برگشت‌پذیر نیست.')) return;
+    books = []; notes = []; sessions = [];
+    save('books', books); save('notes', notes); save('sessions', sessions);
+    renderBooks(); renderNotes(); renderStats();
+  };
+
+  renderBooks(); renderNotes(); renderStats();
+}
+document.addEventListener('DOMContentLoaded', init);
+
+</script>
+</body>
+</html>

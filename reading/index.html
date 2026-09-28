@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>کتابخانه‌ی من | آرمان ناصری</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Playfair+Display:ital,wght@1,900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📚</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">📚</span>
+    <div>
+      <h1>کتابخانه‌ی من <span class="sig">Arman Naseri</span></h1>
+      <span class="by">پیگیری مطالعه · یادداشت و هایلایت</span>
+    </div>
+  </div>
+  <div class="market">
+    <div class="mk"><span>در حال خواندن</span><b id="hReading">—</b></div>
+    <div class="mk"><span>تمام‌شده</span><b id="hDone">—</b></div>
+    <div class="mk"><span>این هفته</span><b id="hWeek">—</b></div>
+    <div class="mk"><span>روزهای پیاپی</span><b id="hStreak">—</b></div>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button class="tab on" data-tab="books">📚 کتاب‌ها</button>
+  <button class="tab" data-tab="notes">✍️ یادداشت‌ها <span class="badge" id="noteCount">0</span></button>
+  <button class="tab" data-tab="stats">📊 آمار</button>
+  <button class="tab" data-tab="set">⚙️ تنظیمات</button>
+</nav>
+
+<!-- ─────────── کتاب‌ها ─────────── -->
+<main class="page on" id="page-books">
+  <div class="controls">
+    <button class="btn primary" id="addBook">➕ کتاب جدید</button>
+    <div class="seg" id="statusSeg">
+      <button data-s="all" class="on">همه</button>
+      <button data-s="reading">در حال خواندن</button>
+      <button data-s="done">تمام‌شده</button>
+      <button data-s="want">می‌خواهم بخوانم</button>
+    </div>
+    <input type="search" id="search" placeholder="جستجوی عنوان یا نویسنده…">
+  </div>
+  <div id="bookGrid" class="grid"></div>
+  <p class="empty" id="booksEmpty">هنوز کتابی اضافه نکرده‌ای — با دکمه‌ی «کتاب جدید» شروع کن 📖</p>
+</main>
+
+<!-- ─────────── یادداشت‌ها ─────────── -->
+<main class="page" id="page-notes">
+  <div class="controls">
+    <div class="seg" id="noteSeg">
+      <button data-t="all" class="on">همه</button>
+      <button data-t="quote">❝ نقل‌قول</button>
+      <button data-t="idea">💡 ایده</button>
+      <button data-t="question">❓ سؤال</button>
+      <button data-t="fav">⭐ نشان‌شده</button>
+    </div>
+    <input type="search" id="noteSearch" placeholder="جستجو در یادداشت‌ها…">
+  </div>
+  <div id="noteList"></div>
+  <p class="empty" id="notesEmpty">هنوز یادداشتی ثبت نشده. وارد یک کتاب شو و جمله‌های مهمش را ذخیره کن ✍️</p>
+</main>
+
+<!-- ─────────── آمار ─────────── -->
+<main class="page" id="page-stats">
+  <div id="statCards"></div>
+  <section class="card pad">
+    <h3>📅 صفحه‌های ۳۰ روز اخیر</h3>
+    <div id="chart30"></div>
+  </section>
+  <section class="card pad">
+    <h3>🏆 پرخوانده‌ترین‌ها</h3>
+    <div id="topBooks"></div>
+  </section>
+</main>
+
+<!-- ─────────── تنظیمات ─────────── -->
+<main class="page" id="page-set">
+  <section class="card pad">
+    <h3>🎯 هدف مطالعه</h3>
+    <div class="row"><label>هدف روزانه (صفحه)</label><input type="number" id="s_goal" step="5" value="20"></div>
+    <p class="muted">هدف کوچک و قابل‌دستیابی بهتر از هدف بزرگِ رهاشده است. ۲۰ صفحه در روز یعنی حدود ۲۴ کتاب در سال.</p>
+  </section>
+  <section class="card pad">
+    <h3>💾 پشتیبان</h3>
+    <p class="muted">همه چیز فقط روی همین مرورگر ذخیره می‌شود. برای انتقال به دستگاه دیگر، فایل پشتیبان بگیر.</p>
+    <div class="btnrow">
+      <button class="btn" id="exportBtn">⬇️ خروجی JSON</button>
+      <button class="btn" id="importBtn">⬆️ بازگردانی</button>
+      <button class="btn danger" id="resetBtn">🗑 پاک‌کردن همه</button>
+    </div>
+    <input type="file" id="importFile" accept="application/json" hidden>
+  </section>
+  <footer class="sign">✍️ طراحی و توسعه توسط آرمان ناصری</footer>
+</main>
+
+<!-- ─────────── کشوی کتاب ─────────── -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="drhead">
+    <div><h2 id="drTitle">—</h2><span class="muted" id="drSub">—</span></div>
+    <button class="btn" id="drClose">✕</button>
+  </div>
+  <div class="drbody" id="drBody"></div>
+</aside>
+
+<script src="app.js"></script>
+</body>
+</html>
