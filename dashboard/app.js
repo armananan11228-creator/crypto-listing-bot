@@ -233,7 +233,7 @@ function updateSignals(rows) {
         signals[r.symbol] = {
           symbol: r.symbol, at: now, entry: r.price, tp1: r.tp1, tp2: r.tp2,
           sl: r.sl, score0: r.score, score: r.score, now: r.price,
-          weak: 0, tp1Hit: false, tf: CFG.tf, riskPct: r.riskPct, be: false,
+          weak: 0, tp1Hit: false, tf: CFG.tf, riskPct: r.riskPct, sl0: r.sl, be: false,
         };
       }
       continue;
@@ -246,15 +246,19 @@ function updateSignals(rows) {
       sg.sl = sg.entry * 1.0005; sg.be = true;
     }
 
-    let end = null;
-    if (r.price <= sg.sl) end = sg.be ? '🛡 در نقطه‌ی ورود بسته شد (بدون ضرر)' : '🛑 حد ضرر خورد';
-    else if (r.price >= sg.tp2) end = '🎯 هدف دوم زده شد';
-    else if ((now - sg.at) / 36e5 >= CFG.hold) end = '⌛ زمان اعتبار تمام شد';
-    else {
+    let end = null, exit = null;
+    if (r.price <= sg.sl) {
+      end = sg.be ? '🛡 در نقطه‌ی ورود بسته شد (بدون ضرر)' : '🛑 حد ضرر خورد';
+      exit = sg.sl;                       // خروج در خود سطح، نه قیمت لحظه‌ی اسکن
+    } else if (r.price >= sg.tp2) {
+      end = '🎯 هدف دوم زده شد'; exit = sg.tp2;
+    } else if ((now - sg.at) / 36e5 >= CFG.hold) {
+      end = '⌛ زمان اعتبار تمام شد'; exit = r.price;
+    } else {
       sg.weak = r.score < CFG.minScore - 15 ? sg.weak + 1 : 0;
-      if (sg.weak >= 2) end = '⚠️ شرایط ضعیف شد';
+      if (sg.weak >= 2) { end = '⚠️ شرایط ضعیف شد'; exit = r.price; }
     }
-    if (end) closeSignal(r.symbol, end);
+    if (end) closeSignal(r.symbol, end, exit);
   }
 
   // ارزهایی که از لیست ۱۰۰تای برتر بیرون رفته‌اند
@@ -265,11 +269,17 @@ function updateSignals(rows) {
   save('signals', signals);
 }
 
-function closeSignal(sym, reason) {
+function closeSignal(sym, reason, exit) {
   const sg = signals[sym];
   if (!sg) return;
-  const res = (sg.now / sg.entry - 1) * 100;
-  signalLog.unshift({ ...sg, closedAt: Date.now(), reason, result: res });
+  const px = exit || sg.now || sg.entry;
+  const res = (px / sg.entry - 1) * 100;
+  // ریسک اولیه‌ی معامله برای تبدیل درصد به R
+  const riskPct = sg.riskPct || (sg.entry > 0 ? (sg.entry - sg.sl0 || sg.entry - sg.sl) / sg.entry * 100 : 0);
+  signalLog.unshift({
+    ...sg, closedAt: Date.now(), reason, exit: px, result: res,
+    R: riskPct > 0 ? res / riskPct : null,
+  });
   signalLog = signalLog.slice(0, 60);
   delete signals[sym];
   save('signals', signals); save('signalLog', signalLog);
@@ -736,46 +746,63 @@ function renderPositions() {
 }
 
 /* کارنامه: امید ریاضی و پروفیت‌فاکتور — تنها اعدادی که می‌گویند سیستم سودده است یا نه */
-function stats(list, getPct) {
+function stats(list, getPct, getR) {
   const n = list.length;
   if (!n) return null;
-  const rs = list.map(getPct);
-  const w = rs.filter(x => x > 0), l = rs.filter(x => x <= 0);
-  const sum = a => a.reduce((s, x) => s + x, 0);
+  const rows = list.map(x => ({ p: getPct(x), r: getR ? getR(x) : null }))
+    .filter(x => Number.isFinite(x.p));
+  if (!rows.length) return null;
+
+  const EPS = 0.05;                                     // زیر ۰.۰۵٪ = سربه‌سر، نه برد و نه باخت
+  const w = rows.filter(x => x.p > EPS);
+  const l = rows.filter(x => x.p < -EPS);
+  const be = rows.length - w.length - l.length;
+  const sum = a => a.reduce((t, x) => t + x.p, 0);
+
   const avgW = w.length ? sum(w) / w.length : 0;
   const avgL = l.length ? Math.abs(sum(l) / l.length) : 0;
-  const wr = w.length / n;
-  const pf = avgL > 0 && l.length ? sum(w) / Math.abs(sum(l)) : (w.length ? Infinity : 0);
+  const decided = w.length + l.length;
+  const wr = decided ? w.length / decided : 0;          // نرخ برد بین معامله‌های تعیین‌تکلیف‌شده
+  const pf = l.length ? sum(w) / Math.abs(sum(l)) : null;   // null = هنوز باختی نبوده
+
   let streak = 0, worst = 0;
-  for (const x of rs) { if (x <= 0) { streak++; worst = Math.max(worst, streak); } else streak = 0; }
+  for (const x of rows) { if (x.p < -EPS) { streak++; worst = Math.max(worst, streak); } else streak = 0; }
+
+  const rVals = rows.map(x => x.r).filter(Number.isFinite);
+  const avgR = rVals.length ? rVals.reduce((t, x) => t + x, 0) / rVals.length : null;
+
   return {
-    n, wr, avgW, avgL, pf,
-    exp: wr * avgW - (1 - wr) * avgL,        // امید ریاضی به درصد
-    rr: avgL > 0 ? avgW / avgL : 0,
-    worst,
+    n: rows.length, be, wins: w.length, losses: l.length,
+    wr, avgW, avgL, pf, worst, avgR, rCount: rVals.length,
+    exp: sum(rows) / rows.length,                        // امید ریاضی = میانگین ساده‌ی همه‌ی نتایج
+    rr: avgL > 0 ? avgW / avgL : (w.length ? null : 0),
   };
 }
 
 function statsCard(st, title, note) {
   if (!st) return '';
   const good = st.exp > 0;
+  const nf = (v, d = 2, suf = '') => v == null ? '—' : (v >= 0 && suf === '٪' ? '' : '') + v.toFixed(d) + suf;
   return `<div class="scorecard ${good ? 'ok' : 'no'}">
     <h3>${title}</h3>
     <div class="scgrid">
       <div><span>تعداد</span><b>${st.n}</b></div>
+      <div><span>برد / باخت${st.be ? ' / سربه‌سر' : ''}</span><b><span class="up">${st.wins}</span> / <span class="dn">${st.losses}</span>${st.be ? ' / ' + st.be : ''}</b></div>
       <div><span>نرخ برد</span><b>${(st.wr * 100).toFixed(0)}٪</b></div>
-      <div><span>میانگین برد</span><b class="up">${st.avgW.toFixed(2)}٪</b></div>
-      <div><span>میانگین باخت</span><b class="dn">${st.avgL.toFixed(2)}٪</b></div>
-      <div><span>برد÷باخت</span><b class="${st.rr >= 1.5 ? 'up' : 'wa'}">${st.rr.toFixed(2)}</b></div>
-      <div><span>پروفیت‌فاکتور</span><b class="${st.pf >= 1.3 ? 'up' : 'dn'}">${st.pf === Infinity ? '∞' : st.pf.toFixed(2)}</b></div>
+      <div><span>میانگین برد</span><b class="up">${nf(st.avgW, 2, '٪')}</b></div>
+      <div><span>میانگین باخت</span><b class="dn">${st.losses ? nf(st.avgL, 2, '٪') : '—'}</b></div>
+      <div><span>برد÷باخت</span><b class="${st.rr == null ? 'up' : st.rr >= 1.5 ? 'up' : 'wa'}">${st.rr == null ? '∞' : nf(st.rr)}</b></div>
+      <div><span>پروفیت‌فاکتور</span><b class="${st.pf == null ? 'up' : st.pf >= 1.3 ? 'up' : 'dn'}">${st.pf == null ? '∞' : nf(st.pf)}</b></div>
+      <div><span>میانگین R</span><b class="${(st.avgR || 0) >= 0 ? 'up' : 'dn'}">${st.avgR == null ? '—' : (st.avgR >= 0 ? '+' : '') + st.avgR.toFixed(2) + 'R'}</b></div>
       <div><span>بیشترین باخت پیاپی</span><b>${st.worst}</b></div>
-      <div><span>امید ریاضی</span><b class="${good ? 'up' : 'dn'}">${st.exp >= 0 ? '+' : ''}${st.exp.toFixed(2)}٪</b></div>
+      <div><span>امید ریاضی</span><b class="${good ? 'up' : 'dn'}">${(st.exp >= 0 ? '+' : '') + st.exp.toFixed(2)}٪</b></div>
     </div>
     <p class="scnote">${st.n < 20
-      ? `⚠️ فقط ${st.n} نمونه — برای قضاوت درست حداقل ۳۰ تا ۵۰ معامله لازم است.`
+      ? `⚠️ فقط ${st.n} نمونه — برای قضاوت درست حداقل ۳۰ تا ۵۰ مورد لازم است. اعداد فعلاً فقط نمایشی‌اند.`
       : good
-        ? `✅ امید ریاضی مثبت: به‌طور میانگین هر معامله ${st.exp.toFixed(2)}٪ به نفع توست. ${note}`
-        : `❌ امید ریاضی منفی: این ستاپ در بلندمدت پول می‌سوزاند. یا حد ضرر را ساختاری‌تر بگذار یا فقط سیگنال‌های با امتیاز بالاتر را بگیر.`}</p>
+        ? `✅ امید ریاضی مثبت: به‌طور میانگین هر مورد ${st.exp.toFixed(2)}٪ به نفع توست. ${note}`
+        : `❌ امید ریاضی منفی: این ستاپ در بلندمدت پول می‌سوزاند. یا حد ضرر را ساختاری‌تر بگذار یا فقط سیگنال‌های با امتیاز بالاتر را بگیر.`}
+      ${st.rCount ? `<br><span class="muted">میانگین R روی ${st.rCount} مورد حساب شده (بقیه قبل از بروزرسانی ثبت شده‌اند).</span>` : ''}</p>
   </div>`;
 }
 
@@ -788,8 +815,8 @@ function renderHistory() {
     <div><span class="muted">معامله‌ها</span><b>${history.length}</b></div>
     <div><span class="muted">برد</span><b>${(wins / history.length * 100).toFixed(0)}%</b></div>` : '';
 
-  const stReal = stats(history, h => h.pnlPct);
-  const stSig = stats(signalLog, s => s.result);
+  const stReal = stats(history, h => h.pnlPct, h => h.R);
+  const stSig = stats(signalLog, x => x.result, x => x.R);
   $('#histCards').innerHTML =
     statsCard(stReal, '📊 کارنامه‌ی معامله‌های واقعی', 'همین را ادامه بده.') +
     statsCard(stSig, '📡 کارنامه‌ی سیگنال‌ها (بدون خرید)', 'اسکنر دارد درست کار می‌کند.');
@@ -801,7 +828,8 @@ function renderHistory() {
         <b style="min-width:62px">${s.symbol.replace('USDT', '')}</b>
         <span class="muted" style="font-size:12px">${fmt(s.entry)} → ${fmt(s.now)}</span>
         <span class="muted" style="font-size:12px">${s.reason}</span>
-        <span class="pnl ${s.result >= 0 ? 'up' : 'dn'}">${pct(s.result)}</span>
+        <span class="pnl ${s.result >= 0 ? 'up' : 'dn'}">${pct(s.result)}${
+          Number.isFinite(s.R) ? `<br><span style="font-size:11px">${(s.R >= 0 ? '+' : '') + s.R.toFixed(2)}R</span>` : ''}</span>
       </div>`).join('') : '';
 
   $('#histList').innerHTML = (history.length ? '<h3 class="sechead">💼 معامله‌های واقعی</h3>' : '') +

@@ -5,16 +5,27 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>دستیار ترید | آرمان ناصری</title>
 <style>
+/* ═══ تم شیشه‌ای بنفش–مشکی ═══ */
 :root{
-  --bg:#080b12; --bg2:#0d111a; --card:#121826; --card2:#161d2e;
-  --line:#222a3d; --tx:#e8eef7; --mu:#8b98b3;
-  --ac:#3b82f6; --gr:#22c55e; --rd:#ef4444; --or:#f59e0b; --pu:#a855f7;
-  --shadow:0 10px 30px rgba(0,0,0,.45);
+  --bg:#07060d; --bg2:#0d0a16;
+  --card:rgba(30,20,52,.44); --card2:rgba(42,28,70,.55);
+  --line:rgba(168,120,255,.16); --line2:rgba(168,120,255,.30);
+  --tx:#f0eaff; --mu:#a394c4;
+  --ac:#a855f7; --ac2:#7c3aed; --acsoft:rgba(168,85,247,.16);
+  --gr:#34d399; --rd:#fb5a6d; --or:#fbbf24; --pu:#c084fc;
+  --shadow:0 12px 40px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.03) inset;
+  --glow:0 0 28px rgba(168,85,247,.22);
+  --blur:blur(18px) saturate(140%);
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0}
 body{
-  background:radial-gradient(1200px 600px at 80% -10%, #14203a 0%, var(--bg) 60%);
+  background:
+    radial-gradient(900px 520px at 85% -8%, rgba(124,58,237,.30) 0%, transparent 62%),
+    radial-gradient(760px 480px at 8% 12%, rgba(168,85,247,.16) 0%, transparent 58%),
+    radial-gradient(1000px 700px at 50% 110%, rgba(88,28,135,.22) 0%, transparent 60%),
+    linear-gradient(180deg, #0a0713 0%, var(--bg) 100%);
+  background-attachment:fixed;
   color:var(--tx);font-family:system-ui,'Segoe UI',Tahoma,sans-serif;
   line-height:1.9;padding-bottom:60px;min-height:100vh;
 }
@@ -23,47 +34,60 @@ h1,h2,h3{margin:0}
 
 /* ── هدر ── */
 .topbar{display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;
-  padding:14px 16px;background:rgba(13,17,26,.85);backdrop-filter:blur(10px);
-  border-bottom:1px solid var(--line);position:sticky;top:0;z-index:40}
+  padding:14px 16px;background:rgba(16,10,30,.62);backdrop-filter:var(--blur);
+  -webkit-backdrop-filter:var(--blur);
+  border-bottom:1px solid var(--line);position:sticky;top:0;z-index:40;
+  box-shadow:0 6px 30px rgba(0,0,0,.45)}
 .brand{display:flex;gap:11px;align-items:center}
 .logo{font-size:26px}
 .topbar h1{font-size:18px}
 .by{color:var(--mu);font-size:11.5px}
 .market{display:flex;gap:8px;flex-wrap:wrap}
-.mk{background:var(--card);border:1px solid var(--line);border-radius:11px;
-  padding:5px 12px;min-width:92px}
+.mk{background:var(--card);border:1px solid var(--line);border-radius:13px;
+  padding:5px 12px;min-width:92px;backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur)}
 .mk span{display:block;color:var(--mu);font-size:10.5px;line-height:1.5}
 .mk b{font-size:14px;line-height:1.6}
 
-.banner{background:#3a2a0a;border-bottom:1px solid #6b4e12;color:#ffd79a;
+.banner{background:rgba(120,70,10,.35);backdrop-filter:var(--blur);border-bottom:1px solid rgba(251,191,36,.28);color:#ffd79a;
   padding:9px 16px;font-size:13px;text-align:center}
 
 /* ── تب‌ها ── */
 .tabs{display:flex;gap:6px;padding:12px 16px 0;overflow-x:auto}
 .tab{background:var(--card);border:1px solid var(--line);color:var(--mu);
-  border-radius:12px 12px 0 0;padding:9px 16px;font:inherit;font-size:13.5px;
-  cursor:pointer;white-space:nowrap}
-.tab.on{background:var(--card2);color:var(--tx);border-bottom-color:transparent;
-  box-shadow:inset 0 2px 0 var(--ac)}
-.badge{background:var(--ac);color:#fff;border-radius:99px;padding:0 7px;font-size:11px;margin-right:4px}
+  border-radius:14px 14px 0 0;padding:9px 16px;font:inherit;font-size:13.5px;
+  cursor:pointer;white-space:nowrap;backdrop-filter:var(--blur);
+  -webkit-backdrop-filter:var(--blur);transition:.18s}
+.tab:hover{color:var(--tx);border-color:var(--line2)}
+.tab.on{background:linear-gradient(180deg,rgba(168,85,247,.22),var(--card2));
+  color:#fff;border-color:var(--line2);border-bottom-color:transparent;
+  box-shadow:inset 0 2px 0 var(--ac),0 -4px 20px rgba(168,85,247,.25)}
+.badge{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;border-radius:99px;
+  padding:0 7px;font-size:11px;margin-right:4px;box-shadow:var(--glow)}
 
 .page{display:none;padding:16px;max-width:1280px;margin:0 auto}
 .page.on{display:block}
 
 /* ── کنترل‌ها ── */
 .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
-.seg{display:flex;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.seg{display:flex;background:var(--card);border:1px solid var(--line);border-radius:14px;
+  overflow:hidden;backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur)}
 .seg button{background:none;border:none;color:var(--mu);padding:8px 14px;font:inherit;
   font-size:13px;cursor:pointer}
-.seg button.on{background:var(--ac);color:#fff}
+.seg button:hover{color:var(--tx)}
+.seg button.on{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;
+  box-shadow:inset 0 0 20px rgba(255,255,255,.12)}
 .slider{display:flex;align-items:center;gap:9px;background:var(--card);border:1px solid var(--line);
-  border-radius:12px;padding:5px 14px;font-size:13px}
+  border-radius:14px;padding:5px 14px;font-size:13px;backdrop-filter:var(--blur);
+  -webkit-backdrop-filter:var(--blur)}
 .slider input{accent-color:var(--ac);width:110px}
-.btn{background:var(--card);border:1px solid var(--line);color:var(--tx);border-radius:12px;
-  padding:9px 16px;font:inherit;font-size:13.5px;cursor:pointer;transition:.15s}
-.btn:hover{border-color:var(--ac)}
-.btn.primary{background:var(--ac);border-color:var(--ac);color:#fff;font-weight:600}
-.btn.buy{background:var(--gr);border-color:var(--gr);color:#04140a;font-weight:700}
+.btn{background:var(--card);border:1px solid var(--line);color:var(--tx);border-radius:14px;
+  padding:9px 16px;font:inherit;font-size:13.5px;cursor:pointer;transition:.18s;
+  backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur)}
+.btn:hover{border-color:var(--line2);box-shadow:var(--glow);transform:translateY(-1px)}
+.btn.primary{background:linear-gradient(135deg,var(--ac),var(--ac2));border-color:transparent;
+  color:#fff;font-weight:600;box-shadow:0 6px 22px rgba(124,58,237,.42)}
+.btn.buy{background:linear-gradient(135deg,#34d399,#10b981);border-color:transparent;
+  color:#04140a;font-weight:700;box-shadow:0 6px 22px rgba(16,185,129,.35)}
 .btn.danger{background:#2a1214;border-color:#5b2126;color:#ff9a9a}
 .btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
 
@@ -74,10 +98,15 @@ h1,h2,h3{margin:0}
 
 /* ── کارت‌ها ── */
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:12px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;
+  box-shadow:var(--shadow);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
+  position:relative;overflow:hidden}
+.card::before{content:'';position:absolute;inset:0 0 auto;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(196,132,252,.55),transparent);pointer-events:none}
 .card.pad{padding:16px;margin-bottom:14px}
 .coin{padding:14px;cursor:pointer;transition:.15s;position:relative;overflow:hidden}
-.coin:hover{border-color:var(--ac);transform:translateY(-2px)}
+.coin:hover{border-color:var(--line2);transform:translateY(-3px);
+  box-shadow:var(--shadow),0 0 34px rgba(168,85,247,.28)}
 .coin .top{display:flex;align-items:center;gap:10px;margin-bottom:8px}
 .sym{font-size:17px;font-weight:700;letter-spacing:.3px}
 .pair{color:var(--mu);font-size:11px}
@@ -106,13 +135,15 @@ h1,h2,h3{margin:0}
 .track i{position:absolute;inset:0 auto 0 0;height:100%;border-radius:99px;
   background:linear-gradient(90deg,var(--rd),var(--or),var(--gr))}
 .ticks{display:flex;justify-content:space-between;font-size:10.5px;color:var(--mu);direction:ltr}
-.advice{border-radius:11px;padding:9px 12px;font-size:13px;margin-top:10px}
+.advice{border-radius:13px;padding:10px 13px;font-size:13px;margin-top:10px;
+  backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.07)}
 .ad-hold{background:rgba(59,130,246,.12);color:#93c5fd}
 .ad-half{background:rgba(245,158,11,.14);color:#fcd34d}
 .ad-sell{background:rgba(239,68,68,.15);color:#fca5a5}
 .ad-win{background:rgba(34,197,94,.14);color:#86efac}
 
 .list .row-h{display:flex;gap:10px;align-items:center;background:var(--card);
+  backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
   border:1px solid var(--line);border-radius:13px;padding:11px 14px;margin-bottom:8px;font-size:13.5px}
 .list .row-h .pnl{font-size:15px}
 
@@ -126,10 +157,13 @@ h1,h2,h3{margin:0}
 .row input[type=checkbox]{width:20px;height:20px;accent-color:var(--ac)}
 
 /* ── کشو ── */
-.scrim{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(3px);
+.scrim{position:fixed;inset:0;background:rgba(7,4,16,.68);backdrop-filter:blur(6px);
   opacity:0;pointer-events:none;transition:.2s;z-index:50}
 .scrim.on{opacity:1;pointer-events:auto}
-.drawer{position:fixed;inset:0 0 0 auto;width:min(460px,100%);background:var(--bg2);
+.drawer{position:fixed;inset:0 0 0 auto;width:min(460px,100%);
+  background:linear-gradient(180deg,rgba(26,16,46,.92),rgba(10,7,19,.96));
+  backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
+  border-right:1px solid var(--line2);box-shadow:-20px 0 60px rgba(0,0,0,.6);
   border-right:1px solid var(--line);z-index:60;transform:translateX(105%);
   transition:.25s cubic-bezier(.4,0,.2,1);overflow-y:auto;box-shadow:var(--shadow)}
 .drawer.on{transform:none}
@@ -145,9 +179,13 @@ h1,h2,h3{margin:0}
 .f .fb{flex:1;height:7px;background:#0b1120;border-radius:99px;overflow:hidden}
 .f .fb i{display:block;height:100%;background:linear-gradient(90deg,#2563eb,#60a5fa)}
 .f b{width:34px;text-align:left;direction:ltr}
-.plan{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:12px;margin:12px 0}
+.plan{background:linear-gradient(180deg,rgba(60,38,100,.30),rgba(20,13,36,.30));
+  border:1px solid var(--line);border-radius:15px;padding:12px;margin:12px 0;
+  backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur)}
 .plan .kv{border-top:none;padding:3px 0;margin:0;font-size:13px}
-.buybox{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:13px;margin-top:12px}
+.buybox{background:linear-gradient(180deg,rgba(60,38,100,.34),rgba(20,13,36,.34));
+  border:1px solid var(--line2);border-radius:15px;padding:13px;margin-top:12px;
+  backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur)}
 
 footer{text-align:center;color:var(--mu);font-size:12px;padding:26px 16px;line-height:2}
 
@@ -161,7 +199,9 @@ footer{text-align:center;color:var(--mu);font-size:12px;padding:26px 16px;line-h
 }
 
 /* ── نمودار HARSI ── */
-.chartbox{background:var(--card);border:1px solid var(--line);border-radius:14px;
+.chartbox{background:linear-gradient(180deg,rgba(45,28,78,.36),rgba(14,9,26,.40));
+  border:1px solid var(--line);border-radius:16px;
+  backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
   padding:11px;margin-bottom:12px}
 .chart-top{display:flex;justify-content:space-between;align-items:center;font-size:13.5px;
   margin-bottom:8px}
@@ -176,10 +216,14 @@ footer{text-align:center;color:var(--mu);font-size:12px;padding:26px 16px;line-h
 
 /* ── سیگنال فعال و توضیحات ── */
 .sechead{grid-column:1/-1;font-size:14px;color:var(--mu);margin:6px 2px 0;font-weight:600}
-.sigcard{border-color:#2c6b46;background:linear-gradient(180deg,#132318,var(--card) 60%)}
+.sigcard{border-color:rgba(52,211,153,.36);
+  background:linear-gradient(180deg,rgba(16,90,66,.34),rgba(20,13,36,.42));
+  box-shadow:var(--shadow),0 0 26px rgba(52,211,153,.14)}
 .ribbon{position:absolute;top:0;left:0;background:var(--gr);color:#04140a;font-size:10.5px;
   font-weight:700;padding:2px 10px;border-radius:0 0 10px 0}
-.why{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px;margin:12px 0}
+.why{background:linear-gradient(180deg,rgba(45,28,78,.34),rgba(14,9,26,.36));
+  border:1px solid var(--line);border-radius:16px;padding:13px;margin:12px 0;
+  backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur)}
 .why h3{font-size:15px;margin-bottom:6px}
 .why h4{font-size:13px;margin:11px 0 5px;color:var(--or)}
 .verdict{font-size:13px;color:#cfe0ff;background:rgba(59,130,246,.1);border-radius:9px;
@@ -192,7 +236,8 @@ footer{text-align:center;color:var(--mu);font-size:12px;padding:26px 16px;line-h
 .rz.no{background:rgba(239,68,68,.07);border-color:var(--rd)}
 
 /* ── اردربلاک ── */
-.oblock{display:flex;flex-direction:column;gap:1px;background:rgba(168,85,247,.12);
+.oblock{display:flex;flex-direction:column;gap:1px;background:rgba(168,85,247,.16);
+  backdrop-filter:blur(8px);
   border:1px solid #6d3fa855;border-radius:9px;padding:5px 9px;font-size:12px;margin-bottom:7px;
   color:#d8b4fe}
 .oblock span{color:var(--mu);font-size:11px;direction:ltr;text-align:right}
@@ -203,16 +248,35 @@ footer{text-align:center;color:var(--mu);font-size:12px;padding:26px 16px;line-h
 .obplan{border-color:#6d3fa855;background:linear-gradient(180deg,#1a1430,var(--card) 70%)}
 
 /* ── کارنامه‌ی عملکرد ── */
-.scorecard{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:13px 15px;margin:12px 0}
-.scorecard.ok{border-color:#245c3a}
-.scorecard.no{border-color:#5c2626}
+.scorecard{background:linear-gradient(180deg,rgba(45,28,78,.40),rgba(14,9,26,.44));
+  border:1px solid var(--line);border-radius:18px;padding:14px 16px;margin:12px 0;
+  backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:var(--shadow)}
+.scorecard.ok{border-color:rgba(52,211,153,.34);box-shadow:var(--shadow),0 0 26px rgba(52,211,153,.12)}
+.scorecard.no{border-color:rgba(251,90,109,.34);box-shadow:var(--shadow),0 0 26px rgba(251,90,109,.12)}
 .scorecard h3{margin:0 0 10px;font-size:15px}
 .scgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:8px}
-.scgrid div{background:#1a2030;border-radius:9px;padding:7px 8px;text-align:center}
+.scgrid div{background:rgba(168,120,255,.10);border:1px solid rgba(168,120,255,.13);
+  border-radius:12px;padding:8px;text-align:center}
 .scgrid span{display:block;font-size:11px;color:var(--mu);margin-bottom:2px}
 .scgrid b{font-size:15px}
 .scnote{font-size:12.5px;color:var(--mu);margin:10px 0 0;line-height:1.8}
-.plan.riskbad{border-color:#5c2626;background:linear-gradient(180deg,#1f1113,var(--card) 70%)}
+.plan.riskbad{border-color:rgba(251,90,109,.38);
+  background:linear-gradient(180deg,rgba(90,20,32,.30),rgba(20,13,36,.36))}
+
+
+/* ── جزئیات تم شیشه‌ای ── */
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:rgba(255,255,255,.03)}
+::-webkit-scrollbar-thumb{background:linear-gradient(180deg,var(--ac),var(--ac2));
+  border-radius:99px;border:2px solid transparent;background-clip:content-box}
+::selection{background:rgba(168,85,247,.38);color:#fff}
+input,select,textarea{background:rgba(168,120,255,.08)!important;
+  border:1px solid var(--line)!important;color:var(--tx)!important;border-radius:11px!important}
+input:focus,select:focus{outline:none;border-color:var(--ac)!important;
+  box-shadow:0 0 0 3px rgba(168,85,247,.18)!important}
+input[type=checkbox]{accent-color:var(--ac)}
+.sechead{color:var(--pu)}
+.ribbon{background:linear-gradient(135deg,var(--ac),var(--ac2))!important;box-shadow:var(--glow)}
 
 </style>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💎</text></svg>">
@@ -981,7 +1045,7 @@ function updateSignals(rows) {
         signals[r.symbol] = {
           symbol: r.symbol, at: now, entry: r.price, tp1: r.tp1, tp2: r.tp2,
           sl: r.sl, score0: r.score, score: r.score, now: r.price,
-          weak: 0, tp1Hit: false, tf: CFG.tf, riskPct: r.riskPct, be: false,
+          weak: 0, tp1Hit: false, tf: CFG.tf, riskPct: r.riskPct, sl0: r.sl, be: false,
         };
       }
       continue;
@@ -994,15 +1058,19 @@ function updateSignals(rows) {
       sg.sl = sg.entry * 1.0005; sg.be = true;
     }
 
-    let end = null;
-    if (r.price <= sg.sl) end = sg.be ? '🛡 در نقطه‌ی ورود بسته شد (بدون ضرر)' : '🛑 حد ضرر خورد';
-    else if (r.price >= sg.tp2) end = '🎯 هدف دوم زده شد';
-    else if ((now - sg.at) / 36e5 >= CFG.hold) end = '⌛ زمان اعتبار تمام شد';
-    else {
+    let end = null, exit = null;
+    if (r.price <= sg.sl) {
+      end = sg.be ? '🛡 در نقطه‌ی ورود بسته شد (بدون ضرر)' : '🛑 حد ضرر خورد';
+      exit = sg.sl;                       // خروج در خود سطح، نه قیمت لحظه‌ی اسکن
+    } else if (r.price >= sg.tp2) {
+      end = '🎯 هدف دوم زده شد'; exit = sg.tp2;
+    } else if ((now - sg.at) / 36e5 >= CFG.hold) {
+      end = '⌛ زمان اعتبار تمام شد'; exit = r.price;
+    } else {
       sg.weak = r.score < CFG.minScore - 15 ? sg.weak + 1 : 0;
-      if (sg.weak >= 2) end = '⚠️ شرایط ضعیف شد';
+      if (sg.weak >= 2) { end = '⚠️ شرایط ضعیف شد'; exit = r.price; }
     }
-    if (end) closeSignal(r.symbol, end);
+    if (end) closeSignal(r.symbol, end, exit);
   }
 
   // ارزهایی که از لیست ۱۰۰تای برتر بیرون رفته‌اند
@@ -1013,11 +1081,17 @@ function updateSignals(rows) {
   save('signals', signals);
 }
 
-function closeSignal(sym, reason) {
+function closeSignal(sym, reason, exit) {
   const sg = signals[sym];
   if (!sg) return;
-  const res = (sg.now / sg.entry - 1) * 100;
-  signalLog.unshift({ ...sg, closedAt: Date.now(), reason, result: res });
+  const px = exit || sg.now || sg.entry;
+  const res = (px / sg.entry - 1) * 100;
+  // ریسک اولیه‌ی معامله برای تبدیل درصد به R
+  const riskPct = sg.riskPct || (sg.entry > 0 ? (sg.entry - sg.sl0 || sg.entry - sg.sl) / sg.entry * 100 : 0);
+  signalLog.unshift({
+    ...sg, closedAt: Date.now(), reason, exit: px, result: res,
+    R: riskPct > 0 ? res / riskPct : null,
+  });
   signalLog = signalLog.slice(0, 60);
   delete signals[sym];
   save('signals', signals); save('signalLog', signalLog);
@@ -1484,46 +1558,63 @@ function renderPositions() {
 }
 
 /* کارنامه: امید ریاضی و پروفیت‌فاکتور — تنها اعدادی که می‌گویند سیستم سودده است یا نه */
-function stats(list, getPct) {
+function stats(list, getPct, getR) {
   const n = list.length;
   if (!n) return null;
-  const rs = list.map(getPct);
-  const w = rs.filter(x => x > 0), l = rs.filter(x => x <= 0);
-  const sum = a => a.reduce((s, x) => s + x, 0);
+  const rows = list.map(x => ({ p: getPct(x), r: getR ? getR(x) : null }))
+    .filter(x => Number.isFinite(x.p));
+  if (!rows.length) return null;
+
+  const EPS = 0.05;                                     // زیر ۰.۰۵٪ = سربه‌سر، نه برد و نه باخت
+  const w = rows.filter(x => x.p > EPS);
+  const l = rows.filter(x => x.p < -EPS);
+  const be = rows.length - w.length - l.length;
+  const sum = a => a.reduce((t, x) => t + x.p, 0);
+
   const avgW = w.length ? sum(w) / w.length : 0;
   const avgL = l.length ? Math.abs(sum(l) / l.length) : 0;
-  const wr = w.length / n;
-  const pf = avgL > 0 && l.length ? sum(w) / Math.abs(sum(l)) : (w.length ? Infinity : 0);
+  const decided = w.length + l.length;
+  const wr = decided ? w.length / decided : 0;          // نرخ برد بین معامله‌های تعیین‌تکلیف‌شده
+  const pf = l.length ? sum(w) / Math.abs(sum(l)) : null;   // null = هنوز باختی نبوده
+
   let streak = 0, worst = 0;
-  for (const x of rs) { if (x <= 0) { streak++; worst = Math.max(worst, streak); } else streak = 0; }
+  for (const x of rows) { if (x.p < -EPS) { streak++; worst = Math.max(worst, streak); } else streak = 0; }
+
+  const rVals = rows.map(x => x.r).filter(Number.isFinite);
+  const avgR = rVals.length ? rVals.reduce((t, x) => t + x, 0) / rVals.length : null;
+
   return {
-    n, wr, avgW, avgL, pf,
-    exp: wr * avgW - (1 - wr) * avgL,        // امید ریاضی به درصد
-    rr: avgL > 0 ? avgW / avgL : 0,
-    worst,
+    n: rows.length, be, wins: w.length, losses: l.length,
+    wr, avgW, avgL, pf, worst, avgR, rCount: rVals.length,
+    exp: sum(rows) / rows.length,                        // امید ریاضی = میانگین ساده‌ی همه‌ی نتایج
+    rr: avgL > 0 ? avgW / avgL : (w.length ? null : 0),
   };
 }
 
 function statsCard(st, title, note) {
   if (!st) return '';
   const good = st.exp > 0;
+  const nf = (v, d = 2, suf = '') => v == null ? '—' : (v >= 0 && suf === '٪' ? '' : '') + v.toFixed(d) + suf;
   return `<div class="scorecard ${good ? 'ok' : 'no'}">
     <h3>${title}</h3>
     <div class="scgrid">
       <div><span>تعداد</span><b>${st.n}</b></div>
+      <div><span>برد / باخت${st.be ? ' / سربه‌سر' : ''}</span><b><span class="up">${st.wins}</span> / <span class="dn">${st.losses}</span>${st.be ? ' / ' + st.be : ''}</b></div>
       <div><span>نرخ برد</span><b>${(st.wr * 100).toFixed(0)}٪</b></div>
-      <div><span>میانگین برد</span><b class="up">${st.avgW.toFixed(2)}٪</b></div>
-      <div><span>میانگین باخت</span><b class="dn">${st.avgL.toFixed(2)}٪</b></div>
-      <div><span>برد÷باخت</span><b class="${st.rr >= 1.5 ? 'up' : 'wa'}">${st.rr.toFixed(2)}</b></div>
-      <div><span>پروفیت‌فاکتور</span><b class="${st.pf >= 1.3 ? 'up' : 'dn'}">${st.pf === Infinity ? '∞' : st.pf.toFixed(2)}</b></div>
+      <div><span>میانگین برد</span><b class="up">${nf(st.avgW, 2, '٪')}</b></div>
+      <div><span>میانگین باخت</span><b class="dn">${st.losses ? nf(st.avgL, 2, '٪') : '—'}</b></div>
+      <div><span>برد÷باخت</span><b class="${st.rr == null ? 'up' : st.rr >= 1.5 ? 'up' : 'wa'}">${st.rr == null ? '∞' : nf(st.rr)}</b></div>
+      <div><span>پروفیت‌فاکتور</span><b class="${st.pf == null ? 'up' : st.pf >= 1.3 ? 'up' : 'dn'}">${st.pf == null ? '∞' : nf(st.pf)}</b></div>
+      <div><span>میانگین R</span><b class="${(st.avgR || 0) >= 0 ? 'up' : 'dn'}">${st.avgR == null ? '—' : (st.avgR >= 0 ? '+' : '') + st.avgR.toFixed(2) + 'R'}</b></div>
       <div><span>بیشترین باخت پیاپی</span><b>${st.worst}</b></div>
-      <div><span>امید ریاضی</span><b class="${good ? 'up' : 'dn'}">${st.exp >= 0 ? '+' : ''}${st.exp.toFixed(2)}٪</b></div>
+      <div><span>امید ریاضی</span><b class="${good ? 'up' : 'dn'}">${(st.exp >= 0 ? '+' : '') + st.exp.toFixed(2)}٪</b></div>
     </div>
     <p class="scnote">${st.n < 20
-      ? `⚠️ فقط ${st.n} نمونه — برای قضاوت درست حداقل ۳۰ تا ۵۰ معامله لازم است.`
+      ? `⚠️ فقط ${st.n} نمونه — برای قضاوت درست حداقل ۳۰ تا ۵۰ مورد لازم است. اعداد فعلاً فقط نمایشی‌اند.`
       : good
-        ? `✅ امید ریاضی مثبت: به‌طور میانگین هر معامله ${st.exp.toFixed(2)}٪ به نفع توست. ${note}`
-        : `❌ امید ریاضی منفی: این ستاپ در بلندمدت پول می‌سوزاند. یا حد ضرر را ساختاری‌تر بگذار یا فقط سیگنال‌های با امتیاز بالاتر را بگیر.`}</p>
+        ? `✅ امید ریاضی مثبت: به‌طور میانگین هر مورد ${st.exp.toFixed(2)}٪ به نفع توست. ${note}`
+        : `❌ امید ریاضی منفی: این ستاپ در بلندمدت پول می‌سوزاند. یا حد ضرر را ساختاری‌تر بگذار یا فقط سیگنال‌های با امتیاز بالاتر را بگیر.`}
+      ${st.rCount ? `<br><span class="muted">میانگین R روی ${st.rCount} مورد حساب شده (بقیه قبل از بروزرسانی ثبت شده‌اند).</span>` : ''}</p>
   </div>`;
 }
 
@@ -1536,8 +1627,8 @@ function renderHistory() {
     <div><span class="muted">معامله‌ها</span><b>${history.length}</b></div>
     <div><span class="muted">برد</span><b>${(wins / history.length * 100).toFixed(0)}%</b></div>` : '';
 
-  const stReal = stats(history, h => h.pnlPct);
-  const stSig = stats(signalLog, s => s.result);
+  const stReal = stats(history, h => h.pnlPct, h => h.R);
+  const stSig = stats(signalLog, x => x.result, x => x.R);
   $('#histCards').innerHTML =
     statsCard(stReal, '📊 کارنامه‌ی معامله‌های واقعی', 'همین را ادامه بده.') +
     statsCard(stSig, '📡 کارنامه‌ی سیگنال‌ها (بدون خرید)', 'اسکنر دارد درست کار می‌کند.');
@@ -1549,7 +1640,8 @@ function renderHistory() {
         <b style="min-width:62px">${s.symbol.replace('USDT', '')}</b>
         <span class="muted" style="font-size:12px">${fmt(s.entry)} → ${fmt(s.now)}</span>
         <span class="muted" style="font-size:12px">${s.reason}</span>
-        <span class="pnl ${s.result >= 0 ? 'up' : 'dn'}">${pct(s.result)}</span>
+        <span class="pnl ${s.result >= 0 ? 'up' : 'dn'}">${pct(s.result)}${
+          Number.isFinite(s.R) ? `<br><span style="font-size:11px">${(s.R >= 0 ? '+' : '') + s.R.toFixed(2)}R</span>` : ''}</span>
       </div>`).join('') : '';
 
   $('#histList').innerHTML = (history.length ? '<h3 class="sechead">💼 معامله‌های واقعی</h3>' : '') +
