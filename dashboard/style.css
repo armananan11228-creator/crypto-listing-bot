@@ -273,22 +273,38 @@ input[type=checkbox]{accent-color:var(--ac)}
 
 /* ── امضای انگلیسی کنار عنوان ── */
 .sig{
-  font-family:'Great Vibes','Segoe Script','Brush Script MT',cursive;
-  font-size:26px;line-height:1;font-weight:400;
-  background:linear-gradient(120deg,#e9d5ff 0%,var(--pu) 38%,var(--ac) 62%,#f5d0fe 100%);
+  font-family:'Cinzel Decorative','Playfair Display','Trajan Pro','Georgia',serif;
+  font-weight:900;font-size:19px;line-height:1;letter-spacing:.06em;
+  text-transform:uppercase;
+  background:linear-gradient(160deg,
+    #fdf4ff 0%, #e9d5ff 18%, var(--pu) 42%, var(--ac2) 58%,
+    #d8b4fe 76%, #fbf5ff 100%);
   -webkit-background-clip:text;background-clip:text;
   -webkit-text-fill-color:transparent;color:transparent;
-  padding-inline:10px 4px;margin-inline-start:6px;
-  position:relative;top:3px;direction:ltr;display:inline-block;
-  filter:drop-shadow(0 0 14px rgba(168,85,247,.55));
-  animation:sigGlow 4s ease-in-out infinite;
+  direction:ltr;display:inline-flex;align-items:center;gap:9px;
+  position:relative;top:1px;margin-inline-start:12px;padding-inline:13px;
+  filter:drop-shadow(0 1px 0 rgba(0,0,0,.6)) drop-shadow(0 0 16px rgba(168,85,247,.5));
+  animation:sigGlow 4.5s ease-in-out infinite;
 }
-.sig::before{
-  content:'';position:absolute;inset-inline-start:0;top:12%;height:76%;width:1px;
-  background:linear-gradient(180deg,transparent,rgba(196,132,252,.6),transparent);
+/* گل‌آرایی دو طرف امضا */
+.sig::before,.sig::after{
+  content:'❖';
+  -webkit-text-fill-color:var(--pu);color:var(--pu);
+  font-family:Georgia,serif;font-size:11px;font-weight:400;
+  opacity:.85;text-shadow:0 0 10px rgba(196,132,252,.8);
+}
+/* خط نور جداکننده از عنوان فارسی */
+.brand h1{display:flex;align-items:center;flex-wrap:wrap}
+.sig{border-inline-start:1px solid transparent;
+  background-origin:padding-box}
+.brand h1 .sig{
+  box-shadow:inset 1px 0 0 0 rgba(196,132,252,.28);
 }
 @keyframes sigGlow{
-  0%,100%{filter:drop-shadow(0 0 12px rgba(168,85,247,.45))}
-  50%{filter:drop-shadow(0 0 20px rgba(196,132,252,.75))}
+  0%,100%{filter:drop-shadow(0 1px 0 rgba(0,0,0,.6)) drop-shadow(0 0 13px rgba(168,85,247,.42))}
+  50%{filter:drop-shadow(0 1px 0 rgba(0,0,0,.6)) drop-shadow(0 0 22px rgba(216,180,254,.8))}
 }
-@media(max-width:560px){.sig{font-size:21px;top:2px}}
+@media(max-width:560px){
+  .sig{font-size:15px;letter-spacing:.04em;margin-inline-start:8px;padding-inline:9px;gap:6px}
+  .sig::before,.sig::after{font-size:9px}
+}
