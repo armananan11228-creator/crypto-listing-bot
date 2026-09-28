@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>چرا سیگنال‌ها سود نمی‌دهند؟ — گزارش بررسی</title>
+<style>
+:root{--bg:#0b0e14;--card:#131824;--bd:#232a3a;--tx:#e6edf6;--mu:#8b98ad;
+ --up:#22c55e;--dn:#ef4444;--wa:#facc15;--ac:#60a5fa}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.9 Tahoma,system-ui,sans-serif;
+ padding:18px;max-width:900px;margin-inline:auto}
+h1{font-size:24px;margin:8px 0 4px;line-height:1.5}
+h2{font-size:20px;margin:34px 0 10px;padding-bottom:8px;border-bottom:2px solid var(--bd)}
+h3{font-size:17px;margin:22px 0 6px;color:var(--ac)}
+p,li{color:#d3dbe8}
+.sub{color:var(--mu);font-size:14px;margin-bottom:22px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px 16px;margin:14px 0}
+.bad{border-color:#5c2626;background:linear-gradient(180deg,#1f1113,var(--card) 70%)}
+.good{border-color:#245c3a;background:linear-gradient(180deg,#0f1d16,var(--card) 70%)}
+.warn{border-color:#5c4a17;background:linear-gradient(180deg,#1d1808,var(--card) 70%)}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--bd);padding:8px 10px;text-align:right}
+th{background:#1a2030;color:var(--mu);font-weight:normal}
+code{background:#1a2030;padding:2px 6px;border-radius:5px;font-size:13px;direction:ltr;
+ display:inline-block;color:#a5d6ff}
+.big{font-size:32px;font-weight:bold;display:block;line-height:1.3}
+.r{color:var(--dn)}.g{color:var(--up)}.y{color:var(--wa)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0}
+.stat{background:#1a2030;border-radius:11px;padding:12px;text-align:center}
+.stat span{font-size:13px;color:var(--mu)}
+ol li,ul li{margin:6px 0}
+.tag{display:inline-block;background:#1a2030;border:1px solid var(--bd);border-radius:7px;
+ padding:1px 8px;font-size:12px;color:var(--mu);margin-inline-start:6px}
+.p1{border-right:4px solid var(--dn)}.p2{border-right:4px solid var(--wa)}.p3{border-right:4px solid var(--ac)}
+footer{margin:40px 0 10px;color:var(--mu);font-size:13px;text-align:center;border-top:1px solid var(--bd);padding-top:14px}
+blockquote{margin:12px 0;padding:10px 14px;border-right:3px solid var(--ac);background:#151c2b;
+ border-radius:0 10px 10px 0;color:#c8d3e3;font-size:15px}
+</style>
+</head>
+<body>
+
+<h1>چرا پیشنهادهای اسکنر کم سود می‌دهند؟</h1>
+<p class="sub">بررسی ریشه‌ای کد فعلی + آنچه تحقیقات درباره‌ی عامل موفقیت تریدر و زمان رشد یک ارز می‌گویند</p>
+
+<div class="card bad">
+<h3 style="color:var(--dn);margin-top:0">🔴 جواب کوتاه: مشکل «انتخاب ارز» نیست، «نسبت ریسک به سود» است</h3>
+<p>روی ۱۹۹ نمونه سیگنال، فرمول فعلی حد ضرر و هدف را اندازه گرفتم. نتیجه:</p>
+<div class="grid">
+  <div class="stat"><span class="big r">۰.۶۰</span><span>میانگین R هدف اول</span></div>
+  <div class="stat"><span class="big r">۱.۲۰</span><span>میانگین R هدف دوم</span></div>
+  <div class="stat"><span class="big r">۱۰۰٪</span><span>سیگنال‌هایی با R هدف۱ زیر ۱</span></div>
+  <div class="stat"><span class="big y">۲.۴۶٪</span><span>میانگین ریسک تا حد ضرر</span></div>
+</div>
+<p><b>معنی‌اش:</b> در هدف اول، ۱۰۰ دلار ریسک می‌کنی تا ۶۰ دلار سود بگیری. حتی اگر تا هدف دوم بمانی، ۱۰۰ می‌دهی تا ۱۲۰ بگیری.</p>
+</div>
+
+<h2>۱. ریاضیِ ساده‌ای که همه چیز را توضیح می‌دهد</h2>
+
+<p>سودآوری یک سیستم فقط به یک عدد بستگی دارد — <b>امید ریاضی (Expectancy)</b>:</p>
+<div class="card"><code>Expectancy = (نرخ برد × میانگین سود) − (نرخ باخت × میانگین ضرر)</code></div>
+
+<p>و نرخ برد لازم برای سربه‌سر شدن:</p>
+
+<table>
+<tr><th>نسبت ریسک/سود</th><th>نرخ برد لازم برای سربه‌سر</th><th>وضعیت</th></tr>
+<tr><td>۱ به ۰.۶ <span class="tag">وضعیت فعلیِ هدف اول</span></td><td class="r">۶۳٪</td><td class="r">تقریباً غیرممکن</td></tr>
+<tr><td>۱ به ۱.۲ <span class="tag">هدف دوم فعلی</span></td><td class="y">۴۵٪</td><td class="y">لبه‌ی تیغ</td></tr>
+<tr><td>۱ به ۲</td><td class="g">۳۳٪</td><td class="g">قابل دستیابی</td></tr>
+<tr><td>۱ به ۳</td><td class="g">۲۵٪</td><td class="g">راحت</td></tr>
+</table>
+
+<div class="card warn">
+<p>🧮 <b>حساب واقعی سیستم فعلی:</b> اگر نصف پوزیشن را در هدف اول (۰.۶R) و نصف را در هدف دوم (۱.۲R) ببندی، میانگین سودت ۰.۹R است.</p>
+<p>نرخ برد لازم = <code>1 / (1 + 0.9) = 52.6%</code> — و با کارمزد و اسلیپیج حدود <b class="r">۵۴٪</b>.</p>
+<p>یعنی سیستم باید بیش از نیمی از مواقع درست بزند، فقط برای اینکه <b>هیچ سودی ندهد</b>. هیچ استراتژی مومنتومی در کریپتو چنین نرخ بردی ندارد — بک‌تست‌های منتشرشده روی BTC نرخ برد <b>۲۵ تا ۳۷ درصد</b> نشان می‌دهند و با R:R بالا سودده‌اند.</p>
+</div>
+
+<h3>ریشه‌ی باگ در کد</h3>
+<div class="card"><code>sl = Math.min(price − ATR×1.6, lo10 × 0.998)</code></div>
+<p>هدف‌ها ثابت‌اند (<code>price + ATR×1.2</code>) ولی حد ضرر <b>هرچه دورتر باشد را انتخاب می‌کند</b>. پس وقتی کف ۱۰ کندل اخیر دور است، ریسک بزرگ می‌شود اما سود ثابت می‌ماند — نسبت به ۰.۲ سقوط می‌کند. این یعنی <b>بدترین سیگنال‌ها بدترین نسبت را می‌گیرند</b>.</p>
+
+<blockquote>مطالعه‌ای روی ۲۵٬۰۰۰ تریدر و ۴ میلیون معامله: ۶۵٪ آن‌ها نرخ برد بالای ۵۰٪ داشتند، ولی ۸۲٪ در مجموع ضرر کردند — چون میانگین بردشان ۱.۲٪ و میانگین باختشان ۲.۸٪ بود.</blockquote>
+
+<h2>۲. عوامل واقعی موفقیت یک تریدر</h2>
+<p>در همه‌ی پژوهش‌هایی که خواندم، همین پنج مورد تکرار می‌شود — و هیچ‌کدام «اندیکاتور بهتر» نیست:</p>
+
+<div class="card p1">
+<h3 style="margin-top:0">۱. نسبت ریسک/سود حداقل ۱:۲ <span class="tag">مهم‌ترین</span></h3>
+<p>بدون این، هیچ دقتی نجاتت نمی‌دهد. با ۱:۳ حتی نرخ برد ۳۰٪ هم سودده است: ۷ باخت (−۷R) + ۳ برد (+۹R) = <b class="g">+۲R</b>.</p>
+</div>
+
+<div class="card p1">
+<h3 style="margin-top:0">۲. اندازه‌ی پوزیشن ثابت بر اساس ریسک، نه بر اساس پول</h3>
+<p>قانون ۱ تا ۲ درصد. اگر حد ضررت ۳٪ پایین‌تر است، حجم معامله باید کوچک‌تر باشد تا ضرر همان ۱٪ سرمایه بماند. الان اپ مبلغ ثابت ۱۰ دلار می‌گیرد و به فاصله‌ی حد ضرر کاری ندارد — یعنی ریسک هر معامله متفاوت است.</p>
+</div>
+
+<div class="card p2">
+<h3 style="margin-top:0">۳. کم معامله کردن</h3>
+<p>مطالعه‌ی کلاسیک باربر و اودین: فعال‌ترین تریدرها سالانه ۶ تا ۷ درصد از بازار عقب‌ترند. هر معامله‌ی اضافه = کارمزد + اسلیپیج + تصمیم احساسی. یک اسکنر که ۲۰ پیشنهاد می‌دهد، خودش مولد ضرر است.</p>
+</div>
+
+<div class="card p2">
+<h3 style="margin-top:0">۴. فیلتر رژیم بازار</h3>
+<p>بک‌تست مومنتوم کریپتو بدون فیلتر: بازده سالانه <span class="r">−۷.۷٪</span>، دراوداون <span class="r">−۸۹.۸٪</span>. همان استراتژی فقط با شرط «BTC بالای میانگین ۲۰۰ روزه»: بازده <span class="g">+۱۰.۸٪</span>، دراوداون <span class="g">−۵۳.۸٪</span>. یک استراتژی حرفه‌ای‌تر با گیت رژیم، <b>۸۳٪ وقت‌ها بیرون از بازار می‌ماند</b>.</p>
+</div>
+
+<div class="card p3">
+<h3 style="margin-top:0">۵. حلقه‌ی بازخورد (ژورنال)</h3>
+<p>بدون محاسبه‌ی نرخ برد و امید ریاضی روی ۱۰۰+ معامله، نمی‌فهمی کدام ستاپ سودده است. اپ ما تاریخچه را ذخیره می‌کند ولی این اعداد را حساب نمی‌کند.</p>
+</div>
+
+<h2>۳. یک ارز کِی رشد می‌کند؟</h2>
+<p>به ترتیب اهمیت بر اساس داده، نه حس:</p>
+
+<table>
+<tr><th>#</th><th>عامل</th><th>چرا مهم است</th><th>در اپ ما</th></tr>
+<tr><td>۱</td><td><b>رژیم کل بازار</b></td><td>در بازار نزولی، بهترین ستاپ تکنیکال هم شکست می‌خورد. همبستگی آلت‌ها با BTC بالای ۰.۸۵ می‌رود.</td><td class="y">ناقص (فقط ×۰.۷۵)</td></tr>
+<tr><td>۲</td><td><b>مومنتوم نسبی ۷ تا ۳۰ روزه</b></td><td>قوی‌ترین فاکتور اثبات‌شده: ارزهایی که در ۳۰ روز گذشته بهترین بودند، ۷ روز بعد هم بهتر عمل می‌کنند. حذفش شارپ را از ۱.۳۱ به ۰.۹۶ می‌اندازد.</td><td class="r">اصلاً نداریم</td></tr>
+<tr><td>۳</td><td><b>قدرت نسبت به بیت‌کوین</b></td><td>ارزی که وقتی BTC خنثی است بالا می‌رود، پول واقعی پشتش است.</td><td class="r">نداریم</td></tr>
+<tr><td>۴</td><td><b>انبساط حجم + شکست ساختار</b></td><td>شکست مقاومت با حجم = ۴۰۰٪ بازدهی بیشتر در ۲۴ ساعت اول نسبت به میانگین.</td><td class="g">داریم ✅</td></tr>
+<tr><td>۵</td><td><b>نقدشوندگی و رتبه‌ی بازار</b></td><td>بک‌تست‌ها: ارزهای بزرگ‌تر پروفیت‌فاکتور بهتر و دراوداون کمتری دارند. آلت‌های کوچک نتایج ناپایدار می‌دهند.</td><td class="y">فقط ۱۰۰ تای برتر</td></tr>
+<tr><td>۶</td><td><b>کاتالیزور خبری</b></td><td>لیست‌شدن در صرافی بزرگ، آنلاک، روایت سکتور. نکته: بیشتر حرکتِ لیست‌شدن <b>قبل از</b> روز لیست اتفاق می‌افتد.</td><td class="r">خارج از دسترس ما</td></tr>
+<tr><td>۷</td><td><b>فاندینگ‌ریت</b></td><td>فاندینگ منفی + قیمت باثبات = فشار شورت‌اسکوییز. فاکتور دوم مهم در پژوهش‌ها.</td><td class="r">نداریم (API دارد)</td></tr>
+</table>
+
+<h2>۴. برنامه‌ی اصلاح — به ترتیب اثر</h2>
+
+<div class="card bad p1">
+<h3 style="margin-top:0">اولویت ۱ — بازطراحی هدف و حد ضرر <span class="tag">بیشترین اثر</span></h3>
+<ul>
+<li>اول حد ضرر را از <b>ساختار</b> بگیر (زیر اردربلاک یا کف سوئینگ)، بعد هدف‌ها را <b>ضریبی از همان ریسک</b> بگذار: هدف۱ = ۱.۵R، هدف۲ = ۳R.</li>
+<li>هر سیگنالی که ریسکش بیش از ۳.۵٪ باشد یا R زیر ۱.۵ بدهد → <b>اصلاً نشان داده نشود</b>.</li>
+<li>کارمزد رفت‌وبرگشت (۰.۲٪) از سود کسر و در R لحاظ شود.</li>
+</ul>
+</div>
+
+<div class="card warn p2">
+<h3 style="margin-top:0">اولویت ۲ — گیت رژیم بازار</h3>
+<p>وقتی BTC زیر EMA200 روزانه است، هیچ سیگنال «🟢 بخر» صادر نشود؛ فقط «⛔ بازار مناسب نیست». سخت است ولی دراوداون را نصف می‌کند.</p>
+</div>
+
+<div class="card warn p2">
+<h3 style="margin-top:0">اولویت ۳ — فاکتور مومنتوم نسبی</h3>
+<p>بازده ۷ و ۳۰ روزه‌ی هر ارز محاسبه و بین ۱۰۰ ارز <b>رتبه‌بندی</b> شود. فقط ربع بالایی مجاز به سیگنال باشند. به‌علاوه «قدرت نسبت به BTC».</p>
+</div>
+
+<div class="card p3">
+<h3 style="margin-top:0">اولویت ۴ — مدیریت معامله‌ی باز</h3>
+<p>در ۱R حد ضرر به نقطه‌ی ورود منتقل شود (ریسک صفر)، و بعدش با ATR دنبال قیمت بیاید. این دقیقاً همان چیزی است که «میانگین برد ۱.۲٪ / میانگین باخت ۲.۸٪» را برعکس می‌کند.</p>
+</div>
+
+<div class="card p3">
+<h3 style="margin-top:0">اولویت ۵ — کارنامه‌ی واقعی</h3>
+<p>از روی تاریخچه: نرخ برد، میانگین R، امید ریاضی، پروفیت‌فاکتور و بیشترین ضرر پیاپی. بدون این، هر تنظیمی حدس است.</p>
+</div>
+
+<div class="card p3">
+<h3 style="margin-top:0">اولویت ۶ — سقف تعداد سیگنال</h3>
+<p>حداکثر ۳ سیگنال فعال هم‌زمان، و فقط بهترین‌ها. کیفیت به‌جای کمیت.</p>
+</div>
+
+<div class="card good">
+<h3 style="margin-top:0;color:var(--up)">انتظار واقع‌بینانه</h3>
+<p>حتی با همه‌ی این اصلاحات، نرخ برد احتمالاً <b>۳۵ تا ۴۵ درصد</b> خواهد بود — و این طبیعی است. سودآوری از <b>بزرگ‌بودن بردها نسبت به باخت‌ها</b> می‌آید، نه از زیاد بودن تعدادشان. اگر اسکنر به تو بگوید «۶ تا از ۱۰ تا اشتباه بود ولی حساب بالا رفت»، یعنی درست کار می‌کند.</p>
+</div>
+
+<footer>✍️ طراحی و توسعه توسط آرمان ناصری</footer>
+</body>
+</html>
