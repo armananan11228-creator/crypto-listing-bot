@@ -13,7 +13,10 @@ const STABLES = ['USDC', 'FDUSD', 'TUSD', 'BUSD', 'DAI', 'USDP', 'EUR', 'TRY', '
 
 /* ─────────── وضعیت برنامه ─────────── */
 const DEFAULTS = {
-  tp1: 1.2, tp2: 2.4, sl: 1.6, hold: 12, maxRsi: 68,
+  r1: 1.5, r2: 3, maxRisk: 3.5,          // اهداف ضریبی از ریسک + سقف ریسک هر معامله
+  capital: 300, riskPerTrade: 1,          // سرمایه کل و درصد ریسک هر معامله
+  maxSignals: 3, rankGate: true,          // سقف سیگنال هم‌زمان + گیت مومنتوم نسبی
+  hold: 12, maxRsi: 68,
   top: 100, amount: 10, minScore: 65, tf: '1h',
   poll: 20, auto: 15, sound: true,
 };
@@ -100,16 +103,17 @@ async function scan() {
     try {
       list = await topSymbols(CFG.top);
       const btc = await klines('BTCUSDT', CFG.tf);
-      const h = TA.btcHealth(btc);
-      market.price = btc[btc.length - 1].close;
-      market.ok = h == null || h >= 40;
-      market.txt = h == null ? 'نامشخص' : h >= 70 ? '🟢 سالم' : h >= 40 ? '🟡 خنثی' : '🔴 ضعیف';
-      market.mult = market.ok ? 1 : 0.75;
+      const g = TA.regime(btc);
+      const ba = TA.analyze(btc, CFG);
+      market = { ok: g.ok, txt: g.txt, mult: g.mult, price: g.price, mom7: ba ? ba.mom7 : 0 };
       demo = false;
     } catch (e) {
       demo = true;
       list = demoList(CFG.top);
-      market = { ok: true, txt: '🟢 سالم (نمایشی)', mult: 1, price: 64000 };
+      const bk = TA.demoKlines(hash('BTCUSDT'));
+      const g = TA.regime(bk), ba = TA.analyze(bk, CFG);
+      market = { ok: g.ok, txt: g.txt + ' (نمایشی)', mult: g.mult,
+                 price: g.price, mom7: ba ? ba.mom7 : 0 };
     }
     $('#demoBanner').hidden = !demo;
 
@@ -117,11 +121,11 @@ async function scan() {
       const k = demo ? TA.demoKlines(hash(t.symbol)) : await klines(t.symbol, CFG.tf);
       const a = TA.analyze(k, CFG);
       if (!a) return null;
-      a.score *= market.mult;
       const ob = CFG.tf === '1h' ? TA.orderBlocks(k) : null;
-      return { ...t, ...a, ob, state: TA.stateOf(a.score, a.rsi, market.ok, CFG) };
+      return { ...t, ...a, ob };
     }, 8, (d, n) => setProgress(d, n, `تحلیل ${d} از ${n} ارز…`));
 
+    rankRows(rows);
     rows.sort((a, b) => b.score - a.score);
     scanRows = rows;
     lastScan = Date.now();
@@ -151,6 +155,31 @@ function demoList(n) {
 function setProgress(d, n, txt) {
   $('#progressBar').style.width = (d / n * 100) + '%';
   $('#progressTxt').textContent = txt;
+}
+
+/* ─────────── مومنتوم نسبی: رتبه‌بندی بین ارزها ───────────
+   قوی‌ترین فاکتور اثبات‌شده در پژوهش‌ها: ارزی که ۷ روز گذشته
+   بهتر از بقیه بوده، احتمال ادامه‌ی حرکتش بیشتر است.          */
+function rankRows(rows) {
+  const sorted = [...rows].sort((a, b) => a.mom7 - b.mom7);
+  const n = sorted.length || 1;
+  sorted.forEach((r, i) => { r.rankPct = n > 1 ? i / (n - 1) : 1; });
+
+  for (const r of rows) {
+    r.rsBtc = (r.mom7 - (market.mom7 || 0)) * 100;      // قدرت نسبت به بیت‌کوین
+    r.rankOk = !CFG.rankGate || r.rankPct >= 0.5;
+    // امتیاز نهایی: ±۱۰ بر اساس جایگاه بین ۱۰۰ ارز
+    r.score = TA.clamp(r.score * market.mult + (r.rankPct - 0.5) * 20, 0, 100);
+    r.state = TA.stateOf(r.score, r.rsi, market.ok, CFG,
+      { riskOk: r.riskOk, rankOk: r.rankOk });
+  }
+}
+
+/* حجم پیشنهادی بر اساس ریسک ثابت، نه مبلغ ثابت */
+function sizeFor(riskPct) {
+  if (!riskPct || riskPct <= 0) return CFG.amount;
+  const dollarRisk = CFG.capital * CFG.riskPerTrade / 100;
+  return Math.max(5, Math.round(dollarRisk / (riskPct / 100)));
 }
 
 /* ─────────── اردربلاک ۱ ساعته (بارگذاری تنبل) ─────────── */
@@ -200,20 +229,25 @@ function updateSignals(rows) {
   for (const r of rows) {
     const sg = signals[r.symbol];
     if (!sg) {
-      if (r.state.t === '🟢 بخر') {
+      if (r.state.t === '🟢 بخر' && Object.keys(signals).length < (CFG.maxSignals || 3)) {
         signals[r.symbol] = {
           symbol: r.symbol, at: now, entry: r.price, tp1: r.tp1, tp2: r.tp2,
           sl: r.sl, score0: r.score, score: r.score, now: r.price,
-          weak: 0, tp1Hit: false, tf: CFG.tf,
+          weak: 0, tp1Hit: false, tf: CFG.tf, riskPct: r.riskPct, be: false,
         };
       }
       continue;
     }
     sg.now = r.price; sg.score = r.score;
     if (r.price >= sg.tp1) sg.tp1Hit = true;
+    // در +۱R حد ضرر به نقطه‌ی ورود می‌آید → معامله بدون ریسک می‌شود
+    const rUnit = sg.entry - sg.sl;
+    if (!sg.be && rUnit > 0 && r.price >= sg.entry + rUnit) {
+      sg.sl = sg.entry * 1.0005; sg.be = true;
+    }
 
     let end = null;
-    if (r.price <= sg.sl) end = '🛑 حد ضرر خورد';
+    if (r.price <= sg.sl) end = sg.be ? '🛡 در نقطه‌ی ورود بسته شد (بدون ضرر)' : '🛑 حد ضرر خورد';
     else if (r.price >= sg.tp2) end = '🎯 هدف دوم زده شد';
     else if ((now - sg.at) / 36e5 >= CFG.hold) end = '⌛ زمان اعتبار تمام شد';
     else {
@@ -304,6 +338,24 @@ function reasons(r) {
     pros.push(['💪', `قدرت روند ${r.adx.toFixed(0)}`, 'روند جان دارد و احتمال ادامه‌اش بیشتر است.']);
   else
     cons.push(['💪', `قدرت روند فقط ${r.adx.toFixed(0)}`, 'بازار بی‌رمق است؛ حرکت ممکن است کش‌دار شود.']);
+
+  if (r.rr2 >= 2.5)
+    pros.push(['📐', `ریسک به بازده ۱ به ${r.rr2.toFixed(1)}`,
+      `حد ضرر ${r.riskPct.toFixed(1)}٪ پایین‌تر از ورود است و هدف دوم ${(r.rr2).toFixed(1)} برابر آن. با این نسبت حتی اگر فقط یک‌سوم معامله‌ها درست باشد، در مجموع سود می‌کنی.`]);
+  else
+    cons.push(['📐', 'نسبت ریسک به بازده ضعیف',
+      `فاصله تا حد ضرر (${r.riskPct.toFixed(1)}٪) نسبت به سود احتمالی زیاد است. چنین معامله‌ای در بلندمدت پول می‌سوزاند حتی اگر چند بار برنده شود.`]);
+
+  if (r.rankPct >= 0.8)
+    pros.push(['🏁', `جزو قوی‌ترین ${((1 - r.rankPct) * 100).toFixed(0) === '0' ? '۵' : ((1 - r.rankPct) * 100).toFixed(0)}٪ بازار`,
+      `در ۷ روز گذشته بهتر از ${(r.rankPct * 100).toFixed(0)}٪ ارزهای اسکن‌شده عمل کرده. قوی‌ترین فاکتور آماری در کریپتو همین است: چیزی که قوی بوده، معمولاً قوی می‌ماند.`]);
+  else if (r.rankOk === false)
+    cons.push(['🐢', 'ضعیف‌تر از میانگین بازار',
+      `در ۷ روز گذشته از نیمی از ارزها عقب‌تر بوده. پول هوشمند جای دیگری است؛ منتظر ماندن برای ارزهای پیشرو منطقی‌تر است.`]);
+
+  if ((r.rsBtc || 0) > 2)
+    pros.push(['₿', 'قوی‌تر از بیت‌کوین',
+      `${pct(r.rsBtc)} بهتر از بیت‌کوین در همین بازه — نشانه‌ی ورود پول اختصاصی به این ارز، نه فقط بالا رفتن کل بازار.`]);
 
   if (r.ob && r.ob.at === 'inside')
     pros.push(['🧱', `روی اردربلاک ${r.ob.zone.grade} (۱ ساعته)`,
@@ -470,11 +522,15 @@ function openDrawer(sym) {
       <div class="kv"><span>حد ضرر پیشنهادی</span><b class="dn">${fmt(r.ob.zone.bottom * 0.997)}</b></div>
     </div>` : ''}
 
-    <div class="plan">
+    <div class="plan ${r.riskOk ? '' : 'riskbad'}">
       <div class="kv"><span>قیمت فعلی</span><b>${fmt(r.price)}</b></div>
-      <div class="kv"><span>🎯 هدف ۱ (سود جزئی)</span><b class="up">${fmt(r.tp1)} · ${pct(tp1p)}</b></div>
-      <div class="kv"><span>🎯 هدف ۲ (فروش کامل)</span><b class="up">${fmt(r.tp2)} · ${pct(tp2p)}</b></div>
-      <div class="kv"><span>🛑 حد ضرر</span><b class="dn">${fmt(r.sl)} · ${pct(slp)}</b></div>
+      <div class="kv"><span>🎯 هدف ۱ (نصف پوزیشن)</span><b class="up">${fmt(r.tp1)} · ${pct(tp1p)} · ${CFG.r1}R</b></div>
+      <div class="kv"><span>🎯 هدف ۲ (فروش کامل)</span><b class="up">${fmt(r.tp2)} · ${pct(tp2p)} · ${CFG.r2}R</b></div>
+      <div class="kv"><span>🛑 حد ضرر (ساختاری)</span><b class="dn">${fmt(r.sl)} · ${pct(slp)}</b></div>
+      <div class="kv"><span>📐 ریسک/بازده پس از کارمزد</span><b class="${r.riskOk ? 'up' : 'dn'}">۱ به ${r.rr2.toFixed(1)}</b></div>
+      <div class="kv"><span>💰 حجم پیشنهادی (ریسک ${CFG.riskPerTrade}٪)</span><b>$${sizeFor(r.riskPct)}</b></div>
+      <div class="kv"><span>📊 قدرت نسبت به بیت‌کوین</span><b class="${(r.rsBtc || 0) >= 0 ? 'up' : 'dn'}">${pct(r.rsBtc || 0)}</b></div>
+      <div class="kv"><span>🏁 جایگاه بین ${scanRows.length} ارز</span><b>${r.rankPct != null ? 'بهتر از ' + (r.rankPct * 100).toFixed(0) + '٪' : '—'}</b></div>
       <div class="kv"><span>⌛ حداکثر نگهداری</span><b>${CFG.hold} ساعت</b></div>
       <div class="kv"><span>RSI · نوسان · ADX</span><b>${r.rsi.toFixed(0)} · ${r.atrPct.toFixed(1)}% · ${r.adx.toFixed(0)}</b></div>
     </div>
@@ -482,7 +538,8 @@ function openDrawer(sym) {
     ${has ? `<div class="advice ad-hold">💼 این ارز را از قیمت ${fmt(has.entry)} داری — در تب «معامله‌های من» دنبالش کن.</div>`
     : `<div class="buybox">
       <h3 style="font-size:15px;margin-bottom:8px">🛒 ثبت خرید</h3>
-      <div class="row"><label>مبلغ خرید ($)</label><input type="number" id="buyAmt" value="${CFG.amount}" step="5"></div>
+      <div class="row"><label>مبلغ خرید ($)</label><input type="number" id="buyAmt" value="${sizeFor(r.riskPct)}" step="5"></div>
+      <p class="muted" style="font-size:12px;margin:2px 0 8px">با این حجم، اگر حد ضرر بخورد حدود <b>$${(CFG.capital * CFG.riskPerTrade / 100).toFixed(1)}</b> (${CFG.riskPerTrade}٪ سرمایه) از دست می‌دهی.</p>
       <div class="row"><label>قیمت ورود</label><input type="number" id="buyPx" value="${r.price}" step="any"></div>
       <div class="row"><label>مقدار دریافتی</label><b id="buyQty" style="direction:ltr">—</b></div>
       <button class="btn buy" id="doBuy" style="width:100%;margin-top:10px">✅ خریدم — همراهم باش</button>
@@ -678,6 +735,50 @@ function renderPositions() {
   });
 }
 
+/* کارنامه: امید ریاضی و پروفیت‌فاکتور — تنها اعدادی که می‌گویند سیستم سودده است یا نه */
+function stats(list, getPct) {
+  const n = list.length;
+  if (!n) return null;
+  const rs = list.map(getPct);
+  const w = rs.filter(x => x > 0), l = rs.filter(x => x <= 0);
+  const sum = a => a.reduce((s, x) => s + x, 0);
+  const avgW = w.length ? sum(w) / w.length : 0;
+  const avgL = l.length ? Math.abs(sum(l) / l.length) : 0;
+  const wr = w.length / n;
+  const pf = avgL > 0 && l.length ? sum(w) / Math.abs(sum(l)) : (w.length ? Infinity : 0);
+  let streak = 0, worst = 0;
+  for (const x of rs) { if (x <= 0) { streak++; worst = Math.max(worst, streak); } else streak = 0; }
+  return {
+    n, wr, avgW, avgL, pf,
+    exp: wr * avgW - (1 - wr) * avgL,        // امید ریاضی به درصد
+    rr: avgL > 0 ? avgW / avgL : 0,
+    worst,
+  };
+}
+
+function statsCard(st, title, note) {
+  if (!st) return '';
+  const good = st.exp > 0;
+  return `<div class="scorecard ${good ? 'ok' : 'no'}">
+    <h3>${title}</h3>
+    <div class="scgrid">
+      <div><span>تعداد</span><b>${st.n}</b></div>
+      <div><span>نرخ برد</span><b>${(st.wr * 100).toFixed(0)}٪</b></div>
+      <div><span>میانگین برد</span><b class="up">${st.avgW.toFixed(2)}٪</b></div>
+      <div><span>میانگین باخت</span><b class="dn">${st.avgL.toFixed(2)}٪</b></div>
+      <div><span>برد÷باخت</span><b class="${st.rr >= 1.5 ? 'up' : 'wa'}">${st.rr.toFixed(2)}</b></div>
+      <div><span>پروفیت‌فاکتور</span><b class="${st.pf >= 1.3 ? 'up' : 'dn'}">${st.pf === Infinity ? '∞' : st.pf.toFixed(2)}</b></div>
+      <div><span>بیشترین باخت پیاپی</span><b>${st.worst}</b></div>
+      <div><span>امید ریاضی</span><b class="${good ? 'up' : 'dn'}">${st.exp >= 0 ? '+' : ''}${st.exp.toFixed(2)}٪</b></div>
+    </div>
+    <p class="scnote">${st.n < 20
+      ? `⚠️ فقط ${st.n} نمونه — برای قضاوت درست حداقل ۳۰ تا ۵۰ معامله لازم است.`
+      : good
+        ? `✅ امید ریاضی مثبت: به‌طور میانگین هر معامله ${st.exp.toFixed(2)}٪ به نفع توست. ${note}`
+        : `❌ امید ریاضی منفی: این ستاپ در بلندمدت پول می‌سوزاند. یا حد ضرر را ساختاری‌تر بگذار یا فقط سیگنال‌های با امتیاز بالاتر را بگیر.`}</p>
+  </div>`;
+}
+
 function renderHistory() {
   $('#histEmpty').hidden = history.length + signalLog.length > 0;
   const total = history.reduce((s, h) => s + h.pnl, 0);
@@ -686,6 +787,12 @@ function renderHistory() {
     <div><span class="muted">سود کل</span><b class="${total >= 0 ? 'up' : 'dn'}">${money(total)}</b></div>
     <div><span class="muted">معامله‌ها</span><b>${history.length}</b></div>
     <div><span class="muted">برد</span><b>${(wins / history.length * 100).toFixed(0)}%</b></div>` : '';
+
+  const stReal = stats(history, h => h.pnlPct);
+  const stSig = stats(signalLog, s => s.result);
+  $('#histCards').innerHTML =
+    statsCard(stReal, '📊 کارنامه‌ی معامله‌های واقعی', 'همین را ادامه بده.') +
+    statsCard(stSig, '📡 کارنامه‌ی سیگنال‌ها (بدون خرید)', 'اسکنر دارد درست کار می‌کند.');
 
   const sigHtml = signalLog.length ? `
     <h3 class="sechead">📡 سیگنال‌های بسته‌شده (بدون خرید واقعی)</h3>` +
@@ -776,14 +883,17 @@ function switchTab(name) {
 
 function bindSettings() {
   const map = {
-    s_tp1: 'tp1', s_tp2: 'tp2', s_sl: 'sl', s_hold: 'hold', s_rsi: 'maxRsi',
-    s_top: 'top', s_amt: 'amount', s_poll: 'poll', s_auto: 'auto',
+    s_cap: 'capital', s_rpt: 'riskPerTrade', s_mrisk: 'maxRisk',
+    s_r1: 'r1', s_r2: 'r2', s_maxsig: 'maxSignals',
+    s_hold: 'hold', s_rsi: 'maxRsi', s_top: 'top', s_poll: 'poll', s_auto: 'auto',
   };
   for (const [id, key] of Object.entries(map)) {
     const el = $('#' + id);
     el.value = CFG[key];
     el.onchange = () => { CFG[key] = +el.value; save('cfg', CFG); renderPositions(); };
   }
+  $('#s_rank').checked = CFG.rankGate;
+  $('#s_rank').onchange = e => { CFG.rankGate = e.target.checked; save('cfg', CFG); };
   $('#s_sound').checked = CFG.sound;
   $('#s_sound').onchange = e => { CFG.sound = e.target.checked; save('cfg', CFG); };
 

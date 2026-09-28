@@ -100,6 +100,8 @@ const TA = (() => {
   }
 
   /* ─────────── امتیازدهی ۸ عاملی ─────────── */
+  const TFMIN = { '5m': 5, '15m': 15, '30m': 30, '1h': 60, '2h': 120, '4h': 240, '1d': 1440 };
+
   function analyze(k, cfg) {
     const c = k.map(x => x.close), h = k.map(x => x.high),
           l = k.map(x => x.low), v = k.map(x => x.volume);
@@ -147,13 +149,30 @@ const TA = (() => {
     const raw = trend * 2 + momo * 1.5 + rs * 1.2 + vol * 1.5 +
                 pull * 1.2 + adxS * 1 + str * .8 + vola * .8;
 
+    /* ─── ریسک ساختاری: اول حد ضرر از ساختار، بعد هدف‌ها ضریبی از همان ریسک ─── */
+    const maxRiskPct = cfg.maxRisk || 3.5;
+    const r1 = cfg.r1 || 1.5, r2 = cfg.r2 || 3;
+    let sl = Math.min(lo10 * 0.997, price - a * 0.9);
+    let risk = price - sl;
+    if (risk < a * 0.8) { risk = a * 0.8; sl = price - risk; }   // حد ضرر بیش از حد تنگ = استاپ‌هانت
+    const riskPct = risk / price * 100;
+    const fee = price * 0.002;                                    // کارمزد رفت‌وبرگشت ۰.۲٪
+    const tp1 = price + risk * r1, tp2 = price + risk * r2;
+    const rr1 = (risk * r1 - fee) / risk, rr2 = (risk * r2 - fee) / risk;
+    const riskOk = riskPct <= maxRiskPct && rr1 >= 1.2;
+
+    /* ─── مومنتوم چند دوره‌ای (برای رتبه‌بندی بین ارزها) ─── */
+    const tfMin = TFMIN[cfg.tf] || 60;
+    const bars = Math.max(1, Math.round(1440 / tfMin));
+    const back = d => c[Math.max(0, c.length - 1 - bars * d)];
+    const mom3 = price / back(3) - 1, mom7 = price / back(7) - 1, mom14 = price / back(14) - 1;
+
     return {
       score: clamp(raw * 10, 0, 100),
       price, rsi: r, atr: a, atrPct: atrP, volChg: vChg, volRatio: vRat,
       adx: ax, ema20: e20, ema50: e50, ema200: e200, pos,
-      tp1: price + a * cfg.tp1,
-      tp2: price + a * cfg.tp2,
-      sl: Math.min(price - a * cfg.sl, lo10 * 0.998),
+      tp1, tp2, sl, risk, riskPct, rr1, rr2, riskOk,
+      mom3, mom7, mom14,
       det: {
         aboveE50: price > e50, e50Above200: e50 > e200, aboveE200: price > e200,
         macdPos: m.hist > 0, macdRising: m.hist > m.prev,
@@ -182,14 +201,39 @@ const TA = (() => {
     return (c[c.length - 1] > e50 ? 40 : 0) + (e50 > e200 ? 30 : 0) + (r > 45 ? 30 : 0);
   }
 
-  function stateOf(score, rsiV, btcOk, cfg) {
+  function stateOf(score, rsiV, btcOk, cfg, ex) {
     if (score <= 0) return { t: '—', c: 'mu' };
-    if (score >= cfg.minScore && rsiV <= cfg.maxRsi && btcOk) return { t: '🟢 بخر', c: 'up' };
-    if (score >= cfg.minScore && rsiV > cfg.maxRsi) return { t: '⚠️ داغ / صبر', c: 'wa' };
-    if (score >= cfg.minScore && !btcOk) return { t: '🟡 بازار ضعیف', c: 'wa' };
+    const good = score >= cfg.minScore;
+    // گیت‌های سخت — هیچ‌کدام نباشد، «بخر» صادر نمی‌شود
+    if (good && ex && ex.riskOk === false)
+      return { t: '📐 ریسک/سود ضعیف', c: 'mu' };
+    if (good && !btcOk) return { t: '🟡 بازار ضعیف', c: 'wa' };
+    if (good && rsiV > cfg.maxRsi) return { t: '⚠️ داغ / صبر', c: 'wa' };
+    if (good && ex && ex.rankOk === false)
+      return { t: '🐢 ضعیف‌تر از بازار', c: 'mu' };
+    if (good) return { t: '🟢 بخر', c: 'up' };
     if (score >= cfg.minScore * .85) return { t: '⏳ نزدیک است', c: 'wa' };
     if (score >= cfg.minScore * .6) return { t: '😐 ضعیف', c: 'mu' };
     return { t: '🚫 نخر', c: 'dn' };
+  }
+
+  /* رژیم بازار: BTC بالای EMA200 باشد + سلامت کافی */
+  function regime(btcK) {
+    const c = btcK.map(x => x.close);
+    const e200 = ema(c, 200), e50 = ema(c, 50);
+    const price = c[c.length - 1];
+    const h = btcHealth(btcK);
+    const above200 = e200 == null ? true : price > e200;
+    const above50 = e50 == null ? true : price > e50;
+    const ok = above200 && (h == null || h >= 40);
+    return {
+      ok, health: h, price, above200, above50,
+      txt: !above200 ? '🔴 نزولی (زیر EMA200)'
+         : h != null && h >= 70 ? '🟢 صعودی و سالم'
+         : h != null && h < 40 ? '🟡 بالای EMA200 ولی ضعیف'
+         : '🟢 صعودی',
+      mult: ok ? 1 : 0.7,
+    };
   }
 
   /* دیتای ساختگی برای حالت نمایشی (وقتی بایننس در دسترس نیست) */
@@ -348,6 +392,6 @@ const TA = (() => {
     };
   }
 
-  return { sma, ema, rsi, macd, atr, adx, analyze, btcHealth, stateOf, demoKlines, clamp, orderBlocks,
+  return { sma, ema, rsi, macd, atr, adx, analyze, btcHealth, stateOf, regime, demoKlines, clamp, orderBlocks,
            rsiSeries, harsi, harsiState };
 })();

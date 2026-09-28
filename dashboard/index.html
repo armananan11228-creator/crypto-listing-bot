@@ -73,6 +73,7 @@
 <!-- ─────────── تاریخچه ─────────── -->
 <main class="page" id="page-hist">
   <div class="sumbar" id="histSummary"></div>
+  <div id="histCards"></div>
   <section class="list" id="histList"></section>
   <div class="empty" id="histEmpty">هنوز معامله‌ی بسته‌شده‌ای نداری.</div>
 </main>
@@ -80,14 +81,23 @@
 <!-- ─────────── تنظیمات ─────────── -->
 <main class="page" id="page-set">
   <section class="card pad">
+    <h3>💰 سرمایه و ریسک</h3>
+    <p class="muted" style="font-size:13px;margin-top:0">حجم هر معامله خودکار حساب می‌شود تا ضرر احتمالی همیشه یک عدد ثابت بماند — مهم‌ترین قانون بقا در ترید.</p>
+    <div class="row"><label>کل سرمایه ($)</label><input type="number" id="s_cap" step="50" value="300"></div>
+    <div class="row"><label>ریسک هر معامله (٪ سرمایه)</label><input type="number" id="s_rpt" step="0.25" value="1"></div>
+    <div class="row"><label>سقف ریسک تا حد ضرر (٪)</label><input type="number" id="s_mrisk" step="0.5" value="3.5"></div>
+  </section>
+
+  <section class="card pad">
     <h3>🎯 استراتژی</h3>
-    <div class="row"><label>هدف اول (× ATR)</label><input type="number" id="s_tp1" step="0.1" value="1.2"></div>
-    <div class="row"><label>هدف دوم (× ATR)</label><input type="number" id="s_tp2" step="0.1" value="2.4"></div>
-    <div class="row"><label>حد ضرر (× ATR)</label><input type="number" id="s_sl" step="0.1" value="1.6"></div>
+    <p class="muted" style="font-size:13px;margin-top:0">اهداف ضریبی از ریسک‌اند (R). با ۳R حتی نرخ برد ۳۰٪ هم سودده است.</p>
+    <div class="row"><label>هدف اول (× ریسک)</label><input type="number" id="s_r1" step="0.1" value="1.5"></div>
+    <div class="row"><label>هدف دوم (× ریسک)</label><input type="number" id="s_r2" step="0.1" value="3"></div>
+    <div class="row"><label>حداکثر سیگنال هم‌زمان</label><input type="number" id="s_maxsig" step="1" value="3"></div>
+    <div class="row"><label>فقط ارزهای قوی‌تر از میانگین بازار</label><input type="checkbox" id="s_rank" checked></div>
     <div class="row"><label>حداکثر ساعت نگهداری</label><input type="number" id="s_hold" step="1" value="12"></div>
     <div class="row"><label>سقف RSI برای خرید</label><input type="number" id="s_rsi" step="1" value="68"></div>
     <div class="row"><label>تعداد ارز اسکن‌شده</label><input type="number" id="s_top" step="10" value="100"></div>
-    <div class="row"><label>مبلغ پیش‌فرض خرید ($)</label><input type="number" id="s_amt" step="5" value="10"></div>
   </section>
 
   <section class="card pad">
