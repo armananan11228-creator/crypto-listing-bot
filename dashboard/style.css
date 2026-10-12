@@ -271,6 +271,20 @@ input[type=checkbox]{accent-color:var(--ac)}
 .sechead{color:var(--pu)}
 .ribbon{background:linear-gradient(135deg,var(--ac),var(--ac2))!important;box-shadow:var(--glow)}
 
+/* ── رگرسیون چندهسته‌ای ── */
+.kreg{margin:6px 0;padding:7px 9px;border-radius:10px;font-size:12px;line-height:1.7;
+  background:linear-gradient(145deg,#a855f71a,#7c3aed0d);border:1px solid #a855f733}
+.kreg.up{background:linear-gradient(145deg,#22c55e1a,#7c3aed0d);border-color:#22c55e40}
+.kreg.dn{background:linear-gradient(145deg,#ef44441a,#7c3aed0d);border-color:#ef444440}
+.kreg.wa{background:linear-gradient(145deg,#f59e0b1a,#7c3aed0d);border-color:#f59e0b40}
+.kreg em{font-style:normal;opacity:.75;font-size:11px}
+.kreg span{display:block;opacity:.7;font-size:11px;direction:ltr;text-align:right}
+.krrow{display:flex;align-items:center;gap:10px;margin:6px 0 2px;font-size:12px;color:#8b98b3}
+.krrow input[type=range]{flex:1;accent-color:#a855f7}
+.krrow b{color:#e9edf6}
+#krSeg{flex-wrap:wrap}
+#krSeg button{font-size:11px;padding:4px 7px}
+
 /* ── امضای انگلیسی کنار عنوان ── */
 .sig{
   font-family:'Cinzel Decorative','Playfair Display','Trajan Pro','Georgia',serif;

@@ -52,6 +52,7 @@
       <button data-f="buy" class="on">فقط خرید 🟢</button>
       <button data-f="near">نزدیک ⏳</button>
       <button data-f="ob">🧱 روی اردربلاک</button>
+      <button data-f="kr">📐 هم‌سو با کرنل</button>
       <button data-f="all">همه</button>
     </div>
     <label class="slider">حداقل امتیاز <b id="minScoreVal">65</b>
@@ -101,6 +102,14 @@
     <div class="row"><label>حداکثر ساعت نگهداری</label><input type="number" id="s_hold" step="1" value="12"></div>
     <div class="row"><label>سقف RSI برای خرید</label><input type="number" id="s_rsi" step="1" value="68"></div>
     <div class="row"><label>تعداد ارز اسکن‌شده</label><input type="number" id="s_top" step="10" value="100"></div>
+  </section>
+
+  <section class="card pad">
+    <h3>📐 رگرسیون چندهسته‌ای</h3>
+    <p class="muted" style="font-size:13px;margin-top:0">خط رگرسیون کرنل، قیمت را هموار می‌کند تا جهت واقعی روند دیده شود. «ترکیب سه‌گانه» میانگین سه هسته است و از تک‌هسته پایدارتر عمل می‌کند.</p>
+    <div class="row"><label>هسته</label><select id="s_kset"></select></div>
+    <div class="row"><label>پهنای باند (هرچه بیشتر، نرم‌تر)</label><input type="number" id="s_kbw" step="1" min="5" max="60" value="14"></div>
+    <div class="row"><label>ضریب باند انحراف (σ)</label><input type="number" id="s_kdev" step="0.1" min="0.5" max="4" value="1.5"></div>
   </section>
 
   <section class="card pad">

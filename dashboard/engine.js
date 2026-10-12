@@ -392,6 +392,155 @@ const TA = (() => {
     };
   }
 
+  /* ═══════════════════════════════════════════════════════════════
+     رگرسیون چندهسته‌ای — Multi Kernel Regression
+     برآوردگر نادارایا–واتسون یک‌طرفه (فقط گذشته ⇒ بازترسیم نمی‌شود)
+       ŷ(t) = Σ K(i/h)·price(t−i) ⁄ Σ K(i/h)
+     هر هسته شکل وزن‌دهی متفاوتی به کندل‌های گذشته می‌دهد.
+     ═══════════════════════════════════════════════════════════════ */
+  const KERNELS = {
+    gaussian:     { t: 'گاوسی',       inf: true,  f: u => Math.exp(-0.5 * u * u) },
+    laplace:      { t: 'لاپلاس',      inf: true,  f: u => Math.exp(-Math.abs(u)) / 2 },
+    logistic:     { t: 'لجستیک',      inf: true,  f: u => 1 / (Math.exp(u) + 2 + Math.exp(-u)) },
+    epanechnikov: { t: 'اپانچنیکوف',  inf: false, f: u => Math.abs(u) <= 1 ? 0.75 * (1 - u * u) : 0 },
+    triangular:   { t: 'مثلثی',       inf: false, f: u => Math.abs(u) <= 1 ? 1 - Math.abs(u) : 0 },
+    tricube:      { t: 'سه‌مکعبی',    inf: false, f: u => Math.abs(u) <= 1 ? Math.pow(1 - Math.pow(Math.abs(u), 3), 3) : 0 },
+    quartic:      { t: 'کوارتیک',     inf: false, f: u => Math.abs(u) <= 1 ? Math.pow(1 - u * u, 2) * 15 / 16 : 0 },
+    cosine:       { t: 'کسینوسی',     inf: false, f: u => Math.abs(u) <= 1 ? Math.PI / 4 * Math.cos(Math.PI / 2 * u) : 0 },
+    wave:         { t: 'موجی',        inf: false, f: u => Math.abs(u) <= 1 ? (1 - Math.abs(u)) * Math.cos(Math.PI * u) : 0 },
+  };
+  const kernelList = () => Object.entries(KERNELS).map(([k, v]) => ({ k, t: v.t }));
+
+  /* یک سری کامل از خط رگرسیون؛ خروجی هم‌طول ورودی (ابتدای آن null) */
+  function kernelReg(src, h = 14, type = 'gaussian') {
+    const K = KERNELS[type] || KERNELS.gaussian;
+    const bw = Math.max(2, h);
+    const depth = Math.max(3, Math.ceil(K.inf ? bw * 3 : bw));   // دم بی‌نهایت تا ۳ برابر پهنا
+    const w = [];
+    for (let i = 0; i < depth; i++) w.push(K.f(i / bw));
+    const out = new Array(src.length).fill(null);
+    for (let t = 0; t < src.length; t++) {
+      if (t < Math.min(depth, 5) - 1) continue;
+      let num = 0, den = 0;
+      for (let i = 0; i < depth && t - i >= 0; i++) {
+        const k = w[i];
+        if (k <= 0) continue;
+        num += k * src[t - i];
+        den += k;
+      }
+      if (den > 0) out[t] = num / den;
+    }
+    return out;
+  }
+
+  /* ترکیب چند هسته + باندهای انحراف باقیمانده + وضعیت روند */
+  function multiKernel(src, opt = {}) {
+    const h = opt.h || 14;
+    const dev = opt.dev == null ? 1.5 : opt.dev;
+    const types = opt.types && opt.types.length ? opt.types
+      : ['gaussian', 'epanechnikov', 'wave'];      // سه‌گانه‌ی تأیید متقاطع
+    const n = src.length;
+    if (n < 20) return null;
+
+    const lines = {};
+    types.forEach(ty => { lines[ty] = kernelReg(src, h, ty); });
+
+    // میانگین بدون سوگیری سه هسته
+    const avg = new Array(n).fill(null);
+    for (let t = 0; t < n; t++) {
+      let s = 0, c = 0;
+      for (const ty of types) { const v = lines[ty][t]; if (v != null) { s += v; c++; } }
+      if (c === types.length) avg[t] = s / c;
+    }
+
+    // انحراف معیار باقیمانده‌ها (نه قیمت) ⇒ باند در روند پهن نمی‌شود
+    const win = Math.max(10, Math.round(h * 2));
+    const res = [];
+    for (let t = Math.max(0, n - win); t < n; t++)
+      if (avg[t] != null) res.push(src[t] - avg[t]);
+    const mean = res.length ? res.reduce((a, b) => a + b, 0) / res.length : 0;
+    const sigma = res.length > 2
+      ? Math.sqrt(res.reduce((a, b) => a + (b - mean) * (b - mean), 0) / (res.length - 1)) : 0;
+
+    const last = avg[n - 1], prev = avg[n - 2];
+    if (last == null || prev == null) return null;
+
+    /* برآوردگر یک‌طرفه ذاتاً عقب‌تر از قیمت است؛ این سوگیری ثابت را
+       از باندها جدا می‌کنیم تا باند واقعاً دور قیمت بنشیند، نه عقب آن. */
+    const bias = mean;
+    const center = last + bias;
+    const price = src[n - 1];
+    const upper = center + sigma * dev, lower = center - sigma * dev;
+
+    const back = Math.max(2, Math.round(h / 2));        // مرجع شیب: نیم‌پهنای باند
+    const ref = avg[n - 1 - back] != null ? avg[n - 1 - back] : prev;
+    const slopePct = prev ? (last / prev - 1) * 100 : 0;
+    const slope3 = ref ? (last / ref - 1) * 100 : slopePct;
+    const volPct = center > 0 ? (sigma / center) * 100 : 0;
+    const slopeSig = volPct > 0 ? slope3 / volPct : slope3;   // شیب بر حسب نوسان
+
+    // چند هسته هم‌جهت‌اند؟ (قدرت اجماع)
+    let agree = 0;
+    for (const ty of types) {
+      const L = lines[ty];
+      if (L[n - 1] != null && L[n - 1 - back] != null && L[n - 1] > L[n - 1 - back]) agree++;
+    }
+
+    const z = sigma > 0 ? (price - center) / sigma : 0;
+    const above = price > last;
+    const wasBelow = avg[n - 2] != null && src[n - 2] <= avg[n - 2];
+    const wasAbove = avg[n - 2] != null && src[n - 2] >= avg[n - 2];
+
+    let cross = null;                                   // لحظه‌ی عبور از خط
+    if (above && wasBelow) cross = 'up';
+    else if (!above && wasAbove) cross = 'down';
+
+    let touch = null;                                   // برخورد به باندها
+    if (sigma > 0) {
+      if (price <= lower) touch = 'lower';
+      else if (price >= upper) touch = 'upper';
+    }
+
+    const trendUp = slopeSig > 0.5 && agree >= Math.ceil(types.length / 2);
+    const trendDn = slopeSig < -0.5 && agree <= Math.floor(types.length / 2);
+
+    // امتیاز ۰..۱ برای استفاده در موتور امتیازدهی
+    let score = 0.5;
+    score += (agree / types.length - 0.5) * 0.5;        // اجماع هسته‌ها
+    score += clamp(slopeSig / 8, -0.25, 0.25);          // شیب نرمال‌شده با نوسان
+    if (above) score += 0.08; else score -= 0.08;
+    if (z > 2) score -= 0.15;                           // خیلی دور از میانگین = کشیده
+    if (trendUp && touch === 'lower') score += 0.15;    // پولبک به باند پایین در روند صعودی
+    score = clamp(score, 0, 1);
+
+    return {
+      types, h, dev, lines, avg, sigma, score, bias, center,
+      value: last, upper, lower, price, z, slopePct, slope3, slopeSig, volPct,
+      agree, total: types.length, above, cross, touch, trendUp, trendDn,
+      distPct: (price / last - 1) * 100,
+    };
+  }
+
+  /* وضعیت خوانا برای نمایش */
+  function kernelState(mk) {
+    if (!mk) return { t: 'بدون داده', c: 'muted', i: '◻️' };
+    if (mk.trendUp && mk.touch === 'lower')
+      return { t: 'پولبک به باند پایین', c: 'wa', i: '🎯' };
+    if (mk.touch === 'upper' && mk.z > mk.dev * 1.5)
+      return { t: 'کشیده بالای باند', c: 'wa', i: '⚠️' };
+    if (mk.agree === mk.total && mk.trendUp && mk.above)
+      return { t: 'روند صعودی تأییدشده', c: 'up', i: '🟢' };
+    if (mk.agree === 0 && mk.trendDn && !mk.above)
+      return { t: 'روند نزولی تأییدشده', c: 'dn', i: '🔴' };
+    if (mk.touch === 'upper')
+      return { t: 'کشیده بالای باند', c: 'wa', i: '⚠️' };
+    if (mk.cross === 'up') return { t: 'عبور رو به بالا', c: 'up', i: '↗️' };
+    if (mk.cross === 'down') return { t: 'عبور رو به پایین', c: 'dn', i: '↘️' };
+    if (mk.trendUp) return { t: 'صعودی ضعیف', c: 'up', i: '🟡' };
+    if (mk.trendDn) return { t: 'نزولی ضعیف', c: 'dn', i: '🟠' };
+    return { t: 'بدون جهت (رِنج)', c: 'muted', i: '⚪' };
+  }
+
   return { sma, ema, rsi, macd, atr, adx, analyze, btcHealth, stateOf, regime, demoKlines, clamp, orderBlocks,
-           rsiSeries, harsi, harsiState };
+           rsiSeries, harsi, harsiState, kernelReg, multiKernel, kernelState, kernelList, KERNELS };
 })();

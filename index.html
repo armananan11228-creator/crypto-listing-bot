@@ -281,6 +281,20 @@ input[type=checkbox]{accent-color:var(--ac)}
 .sechead{color:var(--pu)}
 .ribbon{background:linear-gradient(135deg,var(--ac),var(--ac2))!important;box-shadow:var(--glow)}
 
+/* ── رگرسیون چندهسته‌ای ── */
+.kreg{margin:6px 0;padding:7px 9px;border-radius:10px;font-size:12px;line-height:1.7;
+  background:linear-gradient(145deg,#a855f71a,#7c3aed0d);border:1px solid #a855f733}
+.kreg.up{background:linear-gradient(145deg,#22c55e1a,#7c3aed0d);border-color:#22c55e40}
+.kreg.dn{background:linear-gradient(145deg,#ef44441a,#7c3aed0d);border-color:#ef444440}
+.kreg.wa{background:linear-gradient(145deg,#f59e0b1a,#7c3aed0d);border-color:#f59e0b40}
+.kreg em{font-style:normal;opacity:.75;font-size:11px}
+.kreg span{display:block;opacity:.7;font-size:11px;direction:ltr;text-align:right}
+.krrow{display:flex;align-items:center;gap:10px;margin:6px 0 2px;font-size:12px;color:#8b98b3}
+.krrow input[type=range]{flex:1;accent-color:#a855f7}
+.krrow b{color:#e9edf6}
+#krSeg{flex-wrap:wrap}
+#krSeg button{font-size:11px;padding:4px 7px}
+
 /* ── امضای انگلیسی کنار عنوان ── */
 .sig{
   font-family:'Cinzel Decorative','Playfair Display','Trajan Pro','Georgia',serif;
@@ -365,6 +379,7 @@ input[type=checkbox]{accent-color:var(--ac)}
       <button data-f="buy" class="on">فقط خرید 🟢</button>
       <button data-f="near">نزدیک ⏳</button>
       <button data-f="ob">🧱 روی اردربلاک</button>
+      <button data-f="kr">📐 هم‌سو با کرنل</button>
       <button data-f="all">همه</button>
     </div>
     <label class="slider">حداقل امتیاز <b id="minScoreVal">65</b>
@@ -414,6 +429,14 @@ input[type=checkbox]{accent-color:var(--ac)}
     <div class="row"><label>حداکثر ساعت نگهداری</label><input type="number" id="s_hold" step="1" value="12"></div>
     <div class="row"><label>سقف RSI برای خرید</label><input type="number" id="s_rsi" step="1" value="68"></div>
     <div class="row"><label>تعداد ارز اسکن‌شده</label><input type="number" id="s_top" step="10" value="100"></div>
+  </section>
+
+  <section class="card pad">
+    <h3>📐 رگرسیون چندهسته‌ای</h3>
+    <p class="muted" style="font-size:13px;margin-top:0">خط رگرسیون کرنل، قیمت را هموار می‌کند تا جهت واقعی روند دیده شود. «ترکیب سه‌گانه» میانگین سه هسته است و از تک‌هسته پایدارتر عمل می‌کند.</p>
+    <div class="row"><label>هسته</label><select id="s_kset"></select></div>
+    <div class="row"><label>پهنای باند (هرچه بیشتر، نرم‌تر)</label><input type="number" id="s_kbw" step="1" min="5" max="60" value="14"></div>
+    <div class="row"><label>ضریب باند انحراف (σ)</label><input type="number" id="s_kdev" step="0.1" min="0.5" max="4" value="1.5"></div>
   </section>
 
   <section class="card pad">
@@ -846,8 +869,157 @@ const TA = (() => {
     };
   }
 
+  /* ═══════════════════════════════════════════════════════════════
+     رگرسیون چندهسته‌ای — Multi Kernel Regression
+     برآوردگر نادارایا–واتسون یک‌طرفه (فقط گذشته ⇒ بازترسیم نمی‌شود)
+       ŷ(t) = Σ K(i/h)·price(t−i) ⁄ Σ K(i/h)
+     هر هسته شکل وزن‌دهی متفاوتی به کندل‌های گذشته می‌دهد.
+     ═══════════════════════════════════════════════════════════════ */
+  const KERNELS = {
+    gaussian:     { t: 'گاوسی',       inf: true,  f: u => Math.exp(-0.5 * u * u) },
+    laplace:      { t: 'لاپلاس',      inf: true,  f: u => Math.exp(-Math.abs(u)) / 2 },
+    logistic:     { t: 'لجستیک',      inf: true,  f: u => 1 / (Math.exp(u) + 2 + Math.exp(-u)) },
+    epanechnikov: { t: 'اپانچنیکوف',  inf: false, f: u => Math.abs(u) <= 1 ? 0.75 * (1 - u * u) : 0 },
+    triangular:   { t: 'مثلثی',       inf: false, f: u => Math.abs(u) <= 1 ? 1 - Math.abs(u) : 0 },
+    tricube:      { t: 'سه‌مکعبی',    inf: false, f: u => Math.abs(u) <= 1 ? Math.pow(1 - Math.pow(Math.abs(u), 3), 3) : 0 },
+    quartic:      { t: 'کوارتیک',     inf: false, f: u => Math.abs(u) <= 1 ? Math.pow(1 - u * u, 2) * 15 / 16 : 0 },
+    cosine:       { t: 'کسینوسی',     inf: false, f: u => Math.abs(u) <= 1 ? Math.PI / 4 * Math.cos(Math.PI / 2 * u) : 0 },
+    wave:         { t: 'موجی',        inf: false, f: u => Math.abs(u) <= 1 ? (1 - Math.abs(u)) * Math.cos(Math.PI * u) : 0 },
+  };
+  const kernelList = () => Object.entries(KERNELS).map(([k, v]) => ({ k, t: v.t }));
+
+  /* یک سری کامل از خط رگرسیون؛ خروجی هم‌طول ورودی (ابتدای آن null) */
+  function kernelReg(src, h = 14, type = 'gaussian') {
+    const K = KERNELS[type] || KERNELS.gaussian;
+    const bw = Math.max(2, h);
+    const depth = Math.max(3, Math.ceil(K.inf ? bw * 3 : bw));   // دم بی‌نهایت تا ۳ برابر پهنا
+    const w = [];
+    for (let i = 0; i < depth; i++) w.push(K.f(i / bw));
+    const out = new Array(src.length).fill(null);
+    for (let t = 0; t < src.length; t++) {
+      if (t < Math.min(depth, 5) - 1) continue;
+      let num = 0, den = 0;
+      for (let i = 0; i < depth && t - i >= 0; i++) {
+        const k = w[i];
+        if (k <= 0) continue;
+        num += k * src[t - i];
+        den += k;
+      }
+      if (den > 0) out[t] = num / den;
+    }
+    return out;
+  }
+
+  /* ترکیب چند هسته + باندهای انحراف باقیمانده + وضعیت روند */
+  function multiKernel(src, opt = {}) {
+    const h = opt.h || 14;
+    const dev = opt.dev == null ? 1.5 : opt.dev;
+    const types = opt.types && opt.types.length ? opt.types
+      : ['gaussian', 'epanechnikov', 'wave'];      // سه‌گانه‌ی تأیید متقاطع
+    const n = src.length;
+    if (n < 20) return null;
+
+    const lines = {};
+    types.forEach(ty => { lines[ty] = kernelReg(src, h, ty); });
+
+    // میانگین بدون سوگیری سه هسته
+    const avg = new Array(n).fill(null);
+    for (let t = 0; t < n; t++) {
+      let s = 0, c = 0;
+      for (const ty of types) { const v = lines[ty][t]; if (v != null) { s += v; c++; } }
+      if (c === types.length) avg[t] = s / c;
+    }
+
+    // انحراف معیار باقیمانده‌ها (نه قیمت) ⇒ باند در روند پهن نمی‌شود
+    const win = Math.max(10, Math.round(h * 2));
+    const res = [];
+    for (let t = Math.max(0, n - win); t < n; t++)
+      if (avg[t] != null) res.push(src[t] - avg[t]);
+    const mean = res.length ? res.reduce((a, b) => a + b, 0) / res.length : 0;
+    const sigma = res.length > 2
+      ? Math.sqrt(res.reduce((a, b) => a + (b - mean) * (b - mean), 0) / (res.length - 1)) : 0;
+
+    const last = avg[n - 1], prev = avg[n - 2];
+    if (last == null || prev == null) return null;
+
+    /* برآوردگر یک‌طرفه ذاتاً عقب‌تر از قیمت است؛ این سوگیری ثابت را
+       از باندها جدا می‌کنیم تا باند واقعاً دور قیمت بنشیند، نه عقب آن. */
+    const bias = mean;
+    const center = last + bias;
+    const price = src[n - 1];
+    const upper = center + sigma * dev, lower = center - sigma * dev;
+
+    const back = Math.max(2, Math.round(h / 2));        // مرجع شیب: نیم‌پهنای باند
+    const ref = avg[n - 1 - back] != null ? avg[n - 1 - back] : prev;
+    const slopePct = prev ? (last / prev - 1) * 100 : 0;
+    const slope3 = ref ? (last / ref - 1) * 100 : slopePct;
+    const volPct = center > 0 ? (sigma / center) * 100 : 0;
+    const slopeSig = volPct > 0 ? slope3 / volPct : slope3;   // شیب بر حسب نوسان
+
+    // چند هسته هم‌جهت‌اند؟ (قدرت اجماع)
+    let agree = 0;
+    for (const ty of types) {
+      const L = lines[ty];
+      if (L[n - 1] != null && L[n - 1 - back] != null && L[n - 1] > L[n - 1 - back]) agree++;
+    }
+
+    const z = sigma > 0 ? (price - center) / sigma : 0;
+    const above = price > last;
+    const wasBelow = avg[n - 2] != null && src[n - 2] <= avg[n - 2];
+    const wasAbove = avg[n - 2] != null && src[n - 2] >= avg[n - 2];
+
+    let cross = null;                                   // لحظه‌ی عبور از خط
+    if (above && wasBelow) cross = 'up';
+    else if (!above && wasAbove) cross = 'down';
+
+    let touch = null;                                   // برخورد به باندها
+    if (sigma > 0) {
+      if (price <= lower) touch = 'lower';
+      else if (price >= upper) touch = 'upper';
+    }
+
+    const trendUp = slopeSig > 0.5 && agree >= Math.ceil(types.length / 2);
+    const trendDn = slopeSig < -0.5 && agree <= Math.floor(types.length / 2);
+
+    // امتیاز ۰..۱ برای استفاده در موتور امتیازدهی
+    let score = 0.5;
+    score += (agree / types.length - 0.5) * 0.5;        // اجماع هسته‌ها
+    score += clamp(slopeSig / 8, -0.25, 0.25);          // شیب نرمال‌شده با نوسان
+    if (above) score += 0.08; else score -= 0.08;
+    if (z > 2) score -= 0.15;                           // خیلی دور از میانگین = کشیده
+    if (trendUp && touch === 'lower') score += 0.15;    // پولبک به باند پایین در روند صعودی
+    score = clamp(score, 0, 1);
+
+    return {
+      types, h, dev, lines, avg, sigma, score, bias, center,
+      value: last, upper, lower, price, z, slopePct, slope3, slopeSig, volPct,
+      agree, total: types.length, above, cross, touch, trendUp, trendDn,
+      distPct: (price / last - 1) * 100,
+    };
+  }
+
+  /* وضعیت خوانا برای نمایش */
+  function kernelState(mk) {
+    if (!mk) return { t: 'بدون داده', c: 'muted', i: '◻️' };
+    if (mk.trendUp && mk.touch === 'lower')
+      return { t: 'پولبک به باند پایین', c: 'wa', i: '🎯' };
+    if (mk.touch === 'upper' && mk.z > mk.dev * 1.5)
+      return { t: 'کشیده بالای باند', c: 'wa', i: '⚠️' };
+    if (mk.agree === mk.total && mk.trendUp && mk.above)
+      return { t: 'روند صعودی تأییدشده', c: 'up', i: '🟢' };
+    if (mk.agree === 0 && mk.trendDn && !mk.above)
+      return { t: 'روند نزولی تأییدشده', c: 'dn', i: '🔴' };
+    if (mk.touch === 'upper')
+      return { t: 'کشیده بالای باند', c: 'wa', i: '⚠️' };
+    if (mk.cross === 'up') return { t: 'عبور رو به بالا', c: 'up', i: '↗️' };
+    if (mk.cross === 'down') return { t: 'عبور رو به پایین', c: 'dn', i: '↘️' };
+    if (mk.trendUp) return { t: 'صعودی ضعیف', c: 'up', i: '🟡' };
+    if (mk.trendDn) return { t: 'نزولی ضعیف', c: 'dn', i: '🟠' };
+    return { t: 'بدون جهت (رِنج)', c: 'muted', i: '⚪' };
+  }
+
   return { sma, ema, rsi, macd, atr, adx, analyze, btcHealth, stateOf, regime, demoKlines, clamp, orderBlocks,
-           rsiSeries, harsi, harsiState };
+           rsiSeries, harsi, harsiState, kernelReg, multiKernel, kernelState, kernelList, KERNELS };
 })();
 
 </script>
@@ -873,7 +1045,12 @@ const DEFAULTS = {
   hold: 12, maxRsi: 68,
   top: 100, amount: 10, minScore: 65, tf: '1h',
   poll: 20, auto: 15, sound: true,
+  kSet: 'trio', kBw: 14, kDev: 1.5,      // رگرسیون چندهسته‌ای: مجموعه، پهنای باند، ضریب انحراف
 };
+/* مجموعه‌ی هسته‌های فعال بر اساس تنظیمات */
+const kTypes = () => CFG.kSet === 'trio'
+  ? ['gaussian', 'epanechnikov', 'wave'] : [CFG.kSet];
+const kOpt = () => ({ h: CFG.kBw, dev: CFG.kDev, types: kTypes() });
 let CFG = { ...DEFAULTS, ...load('cfg', {}) };
 let positions = load('positions', []);
 let history = load('history', []);
@@ -976,7 +1153,8 @@ async function scan() {
       const a = TA.analyze(k, CFG);
       if (!a) return null;
       const ob = CFG.tf === '1h' ? TA.orderBlocks(k) : null;
-      return { ...t, ...a, ob };
+      const kr = TA.multiKernel(k.map(x => x.close), kOpt());
+      return { ...t, ...a, ob, kr };
     }, 8, (d, n) => setProgress(d, n, `تحلیل ${d} از ${n} ارز…`));
 
     rankRows(rows);
@@ -1061,6 +1239,15 @@ const OBST = {
   approach: { i: '↘️', t: 'در حال نزدیک‌شدن', c: 'appr' },
 };
 const OBRANK = { inside: 0, near: 1, approach: 2 };
+
+function krBadge(kr) {
+  if (!kr) return '';
+  const st = TA.kernelState(kr);
+  const d = kr.distPct;
+  return `<div class="kreg ${st.c}">
+    <div>${st.i} کرنل: ${st.t} <em>${kr.agree}/${kr.total} هسته</em></div>
+    <span>خط ${fmt(kr.value)} · قیمت ${d >= 0 ? '+' : ''}${d.toFixed(2)}٪ نسبت به خط · z=${kr.z.toFixed(1)}</span></div>`;
+}
 
 function obBadge(ob) {
   if (!ob || !ob.at) return '';
@@ -1186,6 +1373,24 @@ function reasons(r) {
   else
     cons.push(['🔊', 'حجم رشد نکرده', 'بدون حجم، حرکت قیمت دوام نمی‌آورد.']);
 
+  if (r.kr) {
+    const ks = TA.kernelState(r.kr), kr = r.kr;
+    const names = kr.types.map(t => TA.KERNELS[t].t).join(' + ');
+    if (kr.trendUp && kr.touch === 'lower')
+      pros.push(['📐', 'پولبک به باند پایین کرنل',
+        `روند رگرسیون (${names}) صعودی است ولی قیمت تا باند پایین عقب نشسته (z=${kr.z.toFixed(1)}) — بهترین نوع نقطه‌ی ورود: ارزان در دل روند.`]);
+    else if (kr.agree === kr.total && kr.trendUp)
+      pros.push(['📐', 'اجماع کامل هسته‌ها',
+        `هر ${kr.total} هسته (${names}) هم‌زمان رو به بالا هستند و قیمت بالای خط رگرسیون است.`]);
+    else if (kr.trendUp)
+      pros.push(['📐', 'کرنل صعودی', `${kr.agree} از ${kr.total} هسته صعودی‌اند؛ شیب خط ${kr.slope3.toFixed(2)}٪.`]);
+    if (kr.touch === 'upper' && kr.z > kr.dev * 1.5)
+      cons.push(['📐', 'کشیده بالای باند کرنل',
+        `قیمت ${kr.z.toFixed(1)} انحراف معیار بالاتر از خط رگرسیون است — احتمال بازگشت به میانگین بالاست، دنبال قیمت ندو.`]);
+    else if (kr.trendDn)
+      cons.push(['📐', 'کرنل نزولی', `${ks.t}؛ شیب خط ${kr.slope3.toFixed(2)}٪ و قیمت زیر خط رگرسیون است.`]);
+  }
+
   if (r.rsi >= 45 && r.rsi <= 63)
     pros.push(['🎚', `RSI ${r.rsi.toFixed(0)} — ناحیه سالم`, 'نه اشباع خرید است نه مرده؛ جا برای رشد دارد.']);
   else if (r.rsi > 70)
@@ -1258,6 +1463,8 @@ function renderScan() {
   let rows = scanRows;
   if (filter === 'buy') rows = rows.filter(r => r.state.t === '🟢 بخر');
   else if (filter === 'near') rows = rows.filter(r => /بخر|نزدیک|داغ/.test(r.state.t));
+  else if (filter === 'kr') rows = rows.filter(r => r.kr && (r.kr.trendUp || (r.kr.touch === 'lower' && r.kr.agree >= 2)))
+    .sort((a, b) => b.kr.score - a.kr.score);
   else if (filter === 'ob') rows = rows.filter(r => r.ob && r.ob.at)
     .sort((a, b) => OBRANK[a.ob.at] - OBRANK[b.ob.at] ||
       Math.abs(a.ob.distPct) - Math.abs(b.ob.distPct));
@@ -1268,7 +1475,9 @@ function renderScan() {
 
   $('#empty').hidden = rows.length + active.length > 0;
   if (!rows.length && scanRows.length)
-    $('#empty').textContent = filter === 'ob'
+    $('#empty').textContent = filter === 'kr'
+      ? 'هیچ ارزی الان روند صعودی تأییدشده‌ی کرنل یا پولبک به باند پایین ندارد 📐'
+      : filter === 'ob'
       ? 'هیچ ارزی اردربلاک معتبر ۱ ساعته‌ی نزدیک ندارد — کمی بعد دوباره چک کن 🧱'
       : 'الان هیچ ارز جدیدی شرایط خرید ندارد — صبر بهترین معامله است ☕';
 
@@ -1288,6 +1497,7 @@ function renderScan() {
       </div>
       <div class="state ${r.state.c}">${r.state.t}</div>
       ${obBadge(r.ob)}
+      ${krBadge(r.kr)}
       ${spark(r.closes)}
       <div class="kv"><span>قیمت</span><b>${fmt(r.price)}</b></div>
       <div class="kv"><span>۲۴ ساعت</span><b class="${r.chg24 >= 0 ? 'up' : 'dn'}">${pct(r.chg24)}</b></div>
@@ -1359,6 +1569,28 @@ function openDrawer(sym) {
         <span><i style="background:#60a5fa"></i> خط RSI</span>
       </div>
     </div>
+
+    <div class="chartbox">
+      <div class="chart-top">
+        <b>📐 رگرسیون چندهسته‌ای</b>
+        <span class="muted" id="krState">…</span>
+      </div>
+      <div class="seg tfchart" id="krSeg">
+        <button data-ks="trio" class="${CFG.kSet === 'trio' ? 'on' : ''}">ترکیب سه‌گانه</button>
+        ${TA.kernelList().map(k =>
+          `<button data-ks="${k.k}" class="${CFG.kSet === k.k ? 'on' : ''}">${k.t}</button>`).join('')}
+      </div>
+      <div class="krrow">
+        <label>پهنای باند <b id="kBwVal">${CFG.kBw}</b></label>
+        <input type="range" id="kBw" min="5" max="60" step="1" value="${CFG.kBw}">
+      </div>
+      <div id="krBox" class="chart-load">در حال بارگذاری…</div>
+      <div class="chart-legend">
+        <span><i style="background:#a855f7"></i> خط رگرسیون</span>
+        <span><i style="background:#7c3aed"></i> باند ±${CFG.kDev}σ</span>
+        <span><i style="background:#8b98b3"></i> قیمت</span>
+      </div>
+    </div>
     ${spark(r.closes)}
     <div class="factors">${r.factors.map(f => `
       <div class="f"><span>${f.n}</span>
@@ -1422,6 +1654,16 @@ function openDrawer(sym) {
       switchTab('pos');
     };
   }
+  $$('#krSeg button').forEach(b => b.onclick = () => {
+    CFG.kSet = b.dataset.ks; save('cfg', CFG);
+    $$('#krSeg button').forEach(x => x.classList.toggle('on', x.dataset.ks === CFG.kSet));
+    loadChart(sym, chartTf);
+  });
+  $('#kBw').oninput = e => {
+    CFG.kBw = +e.target.value; $('#kBwVal').textContent = CFG.kBw;
+  };
+  $('#kBw').onchange = () => { save('cfg', CFG); loadChart(sym, chartTf); };
+
   $$('#chartTf button').forEach(b => b.onclick = () => {
     chartTf = b.dataset.ctf; save('chartTf', chartTf);
     $$('#chartTf button').forEach(x => x.classList.toggle('on', x.dataset.ctf === chartTf));
@@ -1458,10 +1700,79 @@ async function loadChart(sym, tf) {
       el.textContent = `${st.t} · ${(H[H.length - 1].c + 50).toFixed(0)}`;
       el.className = st.c;
     }
+    drawKernel(k);
   } catch (e) {
     box.className = 'chart-load';
     box.textContent = '❌ نمودار بارگذاری نشد';
   }
+}
+
+/* ─────────── نمودار رگرسیون چندهسته‌ای ─────────── */
+function drawKernel(k) {
+  const box = $('#krBox');
+  if (!box) return;
+  const closes = k.map(x => x.close);
+  const mk = TA.multiKernel(closes, kOpt());
+  const el = $('#krState');
+  if (!mk) {
+    box.className = 'chart-load';
+    box.textContent = 'داده کافی برای رگرسیون نیست';
+    if (el) { el.textContent = '—'; el.className = 'muted'; }
+    return;
+  }
+  box.className = '';
+  box.innerHTML = kernelSvg(closes, mk);
+  if (el) {
+    const st = TA.kernelState(mk);
+    el.textContent = `${st.i} ${st.t} · ${mk.agree}/${mk.total}`;
+    el.className = st.c;
+  }
+}
+
+function kernelSvg(closes, mk) {
+  const N = 90, W = 340, H = 170, PAD = 14, RW = 30;
+  const n = closes.length;
+  const from = Math.max(0, n - N);
+  const px = closes.slice(from);
+  const mid = mk.avg.slice(from).map(v => v == null ? null : v + mk.bias);
+  const up = mid.map(v => v == null ? null : v + mk.sigma * mk.dev);
+  const dn = mid.map(v => v == null ? null : v - mk.sigma * mk.dev);
+
+  const all = [...px, ...up.filter(v => v != null), ...dn.filter(v => v != null)];
+  const lo = Math.min(...all), hi = Math.max(...all);
+  const pad = (hi - lo) * 0.08 || 1;
+  const y = v => PAD + (hi + pad - v) / (hi - lo + pad * 2) * (H - PAD * 2);
+  const x = i => 1 + i * ((W - RW) / px.length);
+
+  const poly = (arr, col, w, op, dash) => {
+    const pts = arr.map((v, i) => v == null ? null : `${x(i).toFixed(1)},${y(v).toFixed(1)}`)
+      .filter(Boolean).join(' ');
+    return `<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="${w}"
+      opacity="${op}" ${dash ? `stroke-dasharray="${dash}"` : ''} stroke-linejoin="round"/>`;
+  };
+
+  // ناحیه‌ی بین دو باند
+  const areaPts = up.map((v, i) => v == null ? null : `${x(i).toFixed(1)},${y(v).toFixed(1)}`).filter(Boolean)
+    .concat(dn.map((v, i) => v == null ? null : `${x(i).toFixed(1)},${y(v).toFixed(1)}`).filter(Boolean).reverse())
+    .join(' ');
+
+  const lastY = y(px[px.length - 1]);
+  const midY = mid[mid.length - 1] != null ? y(mid[mid.length - 1]) : lastY;
+  const col = mk.trendUp ? '#22c55e' : mk.trendDn ? '#ef4444' : '#a855f7';
+
+  const labels = [hi, (hi + lo) / 2, lo].map(v =>
+    `<text x="${W - RW + 3}" y="${y(v) + 3.5}" font-size="8.5" fill="#8b98b3">${fmt(v)}</text>`).join('');
+
+  return `<svg viewBox="0 0 ${W} ${H}" class="harsi" preserveAspectRatio="none">
+    <polygon points="${areaPts}" fill="${col}14"/>
+    ${poly(up, '#7c3aed', 1, .75, '3,3')}
+    ${poly(dn, '#7c3aed', 1, .75, '3,3')}
+    ${poly(px, '#8b98b3', 1, .85)}
+    ${poly(mid, col, 2, 1)}
+    <circle cx="${x(px.length - 1).toFixed(1)}" cy="${lastY.toFixed(1)}" r="2.6" fill="#e9edf6"/>
+    <circle cx="${x(mid.length - 1).toFixed(1)}" cy="${midY.toFixed(1)}" r="2.6" fill="${col}"/>
+    ${labels}
+  </svg>`;
 }
 
 function harsiSvg(cs) {
@@ -1774,6 +2085,20 @@ function bindSettings() {
     el.value = CFG[key];
     el.onchange = () => { CFG[key] = +el.value; save('cfg', CFG); renderPositions(); };
   }
+  const kSel = $('#s_kset');
+  if (kSel) {
+    kSel.innerHTML = `<option value="trio">ترکیب سه‌گانه (پیش‌فرض)</option>` +
+      TA.kernelList().map(k => `<option value="${k.k}">${k.t}</option>`).join('');
+    kSel.value = CFG.kSet;
+    kSel.onchange = () => { CFG.kSet = kSel.value; save('cfg', CFG); };
+  }
+  ['s_kbw', 's_kdev'].forEach(id => {
+    const el = $('#' + id); if (!el) return;
+    const key = id === 's_kbw' ? 'kBw' : 'kDev';
+    el.value = CFG[key];
+    el.onchange = () => { CFG[key] = +el.value || DEFAULTS[key]; save('cfg', CFG); };
+  });
+
   $('#s_rank').checked = CFG.rankGate;
   $('#s_rank').onchange = e => { CFG.rankGate = e.target.checked; save('cfg', CFG); };
   $('#s_sound').checked = CFG.sound;

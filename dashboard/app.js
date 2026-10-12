@@ -19,7 +19,12 @@ const DEFAULTS = {
   hold: 12, maxRsi: 68,
   top: 100, amount: 10, minScore: 65, tf: '1h',
   poll: 20, auto: 15, sound: true,
+  kSet: 'trio', kBw: 14, kDev: 1.5,      // رگرسیون چندهسته‌ای: مجموعه، پهنای باند، ضریب انحراف
 };
+/* مجموعه‌ی هسته‌های فعال بر اساس تنظیمات */
+const kTypes = () => CFG.kSet === 'trio'
+  ? ['gaussian', 'epanechnikov', 'wave'] : [CFG.kSet];
+const kOpt = () => ({ h: CFG.kBw, dev: CFG.kDev, types: kTypes() });
 let CFG = { ...DEFAULTS, ...load('cfg', {}) };
 let positions = load('positions', []);
 let history = load('history', []);
@@ -122,7 +127,8 @@ async function scan() {
       const a = TA.analyze(k, CFG);
       if (!a) return null;
       const ob = CFG.tf === '1h' ? TA.orderBlocks(k) : null;
-      return { ...t, ...a, ob };
+      const kr = TA.multiKernel(k.map(x => x.close), kOpt());
+      return { ...t, ...a, ob, kr };
     }, 8, (d, n) => setProgress(d, n, `تحلیل ${d} از ${n} ارز…`));
 
     rankRows(rows);
@@ -207,6 +213,15 @@ const OBST = {
   approach: { i: '↘️', t: 'در حال نزدیک‌شدن', c: 'appr' },
 };
 const OBRANK = { inside: 0, near: 1, approach: 2 };
+
+function krBadge(kr) {
+  if (!kr) return '';
+  const st = TA.kernelState(kr);
+  const d = kr.distPct;
+  return `<div class="kreg ${st.c}">
+    <div>${st.i} کرنل: ${st.t} <em>${kr.agree}/${kr.total} هسته</em></div>
+    <span>خط ${fmt(kr.value)} · قیمت ${d >= 0 ? '+' : ''}${d.toFixed(2)}٪ نسبت به خط · z=${kr.z.toFixed(1)}</span></div>`;
+}
 
 function obBadge(ob) {
   if (!ob || !ob.at) return '';
@@ -332,6 +347,24 @@ function reasons(r) {
   else
     cons.push(['🔊', 'حجم رشد نکرده', 'بدون حجم، حرکت قیمت دوام نمی‌آورد.']);
 
+  if (r.kr) {
+    const ks = TA.kernelState(r.kr), kr = r.kr;
+    const names = kr.types.map(t => TA.KERNELS[t].t).join(' + ');
+    if (kr.trendUp && kr.touch === 'lower')
+      pros.push(['📐', 'پولبک به باند پایین کرنل',
+        `روند رگرسیون (${names}) صعودی است ولی قیمت تا باند پایین عقب نشسته (z=${kr.z.toFixed(1)}) — بهترین نوع نقطه‌ی ورود: ارزان در دل روند.`]);
+    else if (kr.agree === kr.total && kr.trendUp)
+      pros.push(['📐', 'اجماع کامل هسته‌ها',
+        `هر ${kr.total} هسته (${names}) هم‌زمان رو به بالا هستند و قیمت بالای خط رگرسیون است.`]);
+    else if (kr.trendUp)
+      pros.push(['📐', 'کرنل صعودی', `${kr.agree} از ${kr.total} هسته صعودی‌اند؛ شیب خط ${kr.slope3.toFixed(2)}٪.`]);
+    if (kr.touch === 'upper' && kr.z > kr.dev * 1.5)
+      cons.push(['📐', 'کشیده بالای باند کرنل',
+        `قیمت ${kr.z.toFixed(1)} انحراف معیار بالاتر از خط رگرسیون است — احتمال بازگشت به میانگین بالاست، دنبال قیمت ندو.`]);
+    else if (kr.trendDn)
+      cons.push(['📐', 'کرنل نزولی', `${ks.t}؛ شیب خط ${kr.slope3.toFixed(2)}٪ و قیمت زیر خط رگرسیون است.`]);
+  }
+
   if (r.rsi >= 45 && r.rsi <= 63)
     pros.push(['🎚', `RSI ${r.rsi.toFixed(0)} — ناحیه سالم`, 'نه اشباع خرید است نه مرده؛ جا برای رشد دارد.']);
   else if (r.rsi > 70)
@@ -404,6 +437,8 @@ function renderScan() {
   let rows = scanRows;
   if (filter === 'buy') rows = rows.filter(r => r.state.t === '🟢 بخر');
   else if (filter === 'near') rows = rows.filter(r => /بخر|نزدیک|داغ/.test(r.state.t));
+  else if (filter === 'kr') rows = rows.filter(r => r.kr && (r.kr.trendUp || (r.kr.touch === 'lower' && r.kr.agree >= 2)))
+    .sort((a, b) => b.kr.score - a.kr.score);
   else if (filter === 'ob') rows = rows.filter(r => r.ob && r.ob.at)
     .sort((a, b) => OBRANK[a.ob.at] - OBRANK[b.ob.at] ||
       Math.abs(a.ob.distPct) - Math.abs(b.ob.distPct));
@@ -414,7 +449,9 @@ function renderScan() {
 
   $('#empty').hidden = rows.length + active.length > 0;
   if (!rows.length && scanRows.length)
-    $('#empty').textContent = filter === 'ob'
+    $('#empty').textContent = filter === 'kr'
+      ? 'هیچ ارزی الان روند صعودی تأییدشده‌ی کرنل یا پولبک به باند پایین ندارد 📐'
+      : filter === 'ob'
       ? 'هیچ ارزی اردربلاک معتبر ۱ ساعته‌ی نزدیک ندارد — کمی بعد دوباره چک کن 🧱'
       : 'الان هیچ ارز جدیدی شرایط خرید ندارد — صبر بهترین معامله است ☕';
 
@@ -434,6 +471,7 @@ function renderScan() {
       </div>
       <div class="state ${r.state.c}">${r.state.t}</div>
       ${obBadge(r.ob)}
+      ${krBadge(r.kr)}
       ${spark(r.closes)}
       <div class="kv"><span>قیمت</span><b>${fmt(r.price)}</b></div>
       <div class="kv"><span>۲۴ ساعت</span><b class="${r.chg24 >= 0 ? 'up' : 'dn'}">${pct(r.chg24)}</b></div>
@@ -505,6 +543,28 @@ function openDrawer(sym) {
         <span><i style="background:#60a5fa"></i> خط RSI</span>
       </div>
     </div>
+
+    <div class="chartbox">
+      <div class="chart-top">
+        <b>📐 رگرسیون چندهسته‌ای</b>
+        <span class="muted" id="krState">…</span>
+      </div>
+      <div class="seg tfchart" id="krSeg">
+        <button data-ks="trio" class="${CFG.kSet === 'trio' ? 'on' : ''}">ترکیب سه‌گانه</button>
+        ${TA.kernelList().map(k =>
+          `<button data-ks="${k.k}" class="${CFG.kSet === k.k ? 'on' : ''}">${k.t}</button>`).join('')}
+      </div>
+      <div class="krrow">
+        <label>پهنای باند <b id="kBwVal">${CFG.kBw}</b></label>
+        <input type="range" id="kBw" min="5" max="60" step="1" value="${CFG.kBw}">
+      </div>
+      <div id="krBox" class="chart-load">در حال بارگذاری…</div>
+      <div class="chart-legend">
+        <span><i style="background:#a855f7"></i> خط رگرسیون</span>
+        <span><i style="background:#7c3aed"></i> باند ±${CFG.kDev}σ</span>
+        <span><i style="background:#8b98b3"></i> قیمت</span>
+      </div>
+    </div>
     ${spark(r.closes)}
     <div class="factors">${r.factors.map(f => `
       <div class="f"><span>${f.n}</span>
@@ -568,6 +628,16 @@ function openDrawer(sym) {
       switchTab('pos');
     };
   }
+  $$('#krSeg button').forEach(b => b.onclick = () => {
+    CFG.kSet = b.dataset.ks; save('cfg', CFG);
+    $$('#krSeg button').forEach(x => x.classList.toggle('on', x.dataset.ks === CFG.kSet));
+    loadChart(sym, chartTf);
+  });
+  $('#kBw').oninput = e => {
+    CFG.kBw = +e.target.value; $('#kBwVal').textContent = CFG.kBw;
+  };
+  $('#kBw').onchange = () => { save('cfg', CFG); loadChart(sym, chartTf); };
+
   $$('#chartTf button').forEach(b => b.onclick = () => {
     chartTf = b.dataset.ctf; save('chartTf', chartTf);
     $$('#chartTf button').forEach(x => x.classList.toggle('on', x.dataset.ctf === chartTf));
@@ -604,10 +674,79 @@ async function loadChart(sym, tf) {
       el.textContent = `${st.t} · ${(H[H.length - 1].c + 50).toFixed(0)}`;
       el.className = st.c;
     }
+    drawKernel(k);
   } catch (e) {
     box.className = 'chart-load';
     box.textContent = '❌ نمودار بارگذاری نشد';
   }
+}
+
+/* ─────────── نمودار رگرسیون چندهسته‌ای ─────────── */
+function drawKernel(k) {
+  const box = $('#krBox');
+  if (!box) return;
+  const closes = k.map(x => x.close);
+  const mk = TA.multiKernel(closes, kOpt());
+  const el = $('#krState');
+  if (!mk) {
+    box.className = 'chart-load';
+    box.textContent = 'داده کافی برای رگرسیون نیست';
+    if (el) { el.textContent = '—'; el.className = 'muted'; }
+    return;
+  }
+  box.className = '';
+  box.innerHTML = kernelSvg(closes, mk);
+  if (el) {
+    const st = TA.kernelState(mk);
+    el.textContent = `${st.i} ${st.t} · ${mk.agree}/${mk.total}`;
+    el.className = st.c;
+  }
+}
+
+function kernelSvg(closes, mk) {
+  const N = 90, W = 340, H = 170, PAD = 14, RW = 30;
+  const n = closes.length;
+  const from = Math.max(0, n - N);
+  const px = closes.slice(from);
+  const mid = mk.avg.slice(from).map(v => v == null ? null : v + mk.bias);
+  const up = mid.map(v => v == null ? null : v + mk.sigma * mk.dev);
+  const dn = mid.map(v => v == null ? null : v - mk.sigma * mk.dev);
+
+  const all = [...px, ...up.filter(v => v != null), ...dn.filter(v => v != null)];
+  const lo = Math.min(...all), hi = Math.max(...all);
+  const pad = (hi - lo) * 0.08 || 1;
+  const y = v => PAD + (hi + pad - v) / (hi - lo + pad * 2) * (H - PAD * 2);
+  const x = i => 1 + i * ((W - RW) / px.length);
+
+  const poly = (arr, col, w, op, dash) => {
+    const pts = arr.map((v, i) => v == null ? null : `${x(i).toFixed(1)},${y(v).toFixed(1)}`)
+      .filter(Boolean).join(' ');
+    return `<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="${w}"
+      opacity="${op}" ${dash ? `stroke-dasharray="${dash}"` : ''} stroke-linejoin="round"/>`;
+  };
+
+  // ناحیه‌ی بین دو باند
+  const areaPts = up.map((v, i) => v == null ? null : `${x(i).toFixed(1)},${y(v).toFixed(1)}`).filter(Boolean)
+    .concat(dn.map((v, i) => v == null ? null : `${x(i).toFixed(1)},${y(v).toFixed(1)}`).filter(Boolean).reverse())
+    .join(' ');
+
+  const lastY = y(px[px.length - 1]);
+  const midY = mid[mid.length - 1] != null ? y(mid[mid.length - 1]) : lastY;
+  const col = mk.trendUp ? '#22c55e' : mk.trendDn ? '#ef4444' : '#a855f7';
+
+  const labels = [hi, (hi + lo) / 2, lo].map(v =>
+    `<text x="${W - RW + 3}" y="${y(v) + 3.5}" font-size="8.5" fill="#8b98b3">${fmt(v)}</text>`).join('');
+
+  return `<svg viewBox="0 0 ${W} ${H}" class="harsi" preserveAspectRatio="none">
+    <polygon points="${areaPts}" fill="${col}14"/>
+    ${poly(up, '#7c3aed', 1, .75, '3,3')}
+    ${poly(dn, '#7c3aed', 1, .75, '3,3')}
+    ${poly(px, '#8b98b3', 1, .85)}
+    ${poly(mid, col, 2, 1)}
+    <circle cx="${x(px.length - 1).toFixed(1)}" cy="${lastY.toFixed(1)}" r="2.6" fill="#e9edf6"/>
+    <circle cx="${x(mid.length - 1).toFixed(1)}" cy="${midY.toFixed(1)}" r="2.6" fill="${col}"/>
+    ${labels}
+  </svg>`;
 }
 
 function harsiSvg(cs) {
@@ -920,6 +1059,20 @@ function bindSettings() {
     el.value = CFG[key];
     el.onchange = () => { CFG[key] = +el.value; save('cfg', CFG); renderPositions(); };
   }
+  const kSel = $('#s_kset');
+  if (kSel) {
+    kSel.innerHTML = `<option value="trio">ترکیب سه‌گانه (پیش‌فرض)</option>` +
+      TA.kernelList().map(k => `<option value="${k.k}">${k.t}</option>`).join('');
+    kSel.value = CFG.kSet;
+    kSel.onchange = () => { CFG.kSet = kSel.value; save('cfg', CFG); };
+  }
+  ['s_kbw', 's_kdev'].forEach(id => {
+    const el = $('#' + id); if (!el) return;
+    const key = id === 's_kbw' ? 'kBw' : 'kDev';
+    el.value = CFG[key];
+    el.onchange = () => { CFG[key] = +el.value || DEFAULTS[key]; save('cfg', CFG); };
+  });
+
   $('#s_rank').checked = CFG.rankGate;
   $('#s_rank').onchange = e => { CFG.rankGate = e.target.checked; save('cfg', CFG); };
   $('#s_sound').checked = CFG.sound;
