@@ -521,6 +521,83 @@ const TA = (() => {
     };
   }
 
+  /* ═══ شکار سیگنال تازه ═══
+     همان شرط‌های Pine، ولی روی چند کندل آخر اجرا می‌شود تا بفهمیم
+     سیگنال خرید دقیقاً چند کندل پیش صادر شده است.
+       الف) عبور قیمت به بالای خط رگرسیون در روند صعودی
+       ب)  پایان پولبک: قیمت از زیر باند پایین برگشته بالا          */
+  function kernelSignals(src, opt = {}, look = 10) {
+    const h = opt.h || 14;
+    const dev = opt.dev == null ? 1.5 : opt.dev;
+    const types = opt.types && opt.types.length ? opt.types
+      : ['gaussian', 'epanechnikov', 'wave'];
+    const n = src.length;
+    const win = Math.max(10, Math.round(h * 2));
+    const back = Math.max(2, Math.round(h / 2));
+    if (n < win + back + look + 5) return null;
+
+    const lines = {};
+    types.forEach(ty => { lines[ty] = kernelReg(src, h, ty); });
+    const avg = new Array(n).fill(null);
+    for (let t = 0; t < n; t++) {
+      let s = 0, c = 0;
+      for (const ty of types) { const v = lines[ty][t]; if (v != null) { s += v; c++; } }
+      if (c === types.length) avg[t] = s / c;
+    }
+
+    /* وضعیت کامل یک کندل مشخص (فقط با داده‌ی تا همان کندل) */
+    const at = t => {
+      if (avg[t] == null || avg[t - back] == null) return null;
+      const res = [];
+      for (let i = Math.max(0, t - win + 1); i <= t; i++)
+        if (avg[i] != null) res.push(src[i] - avg[i]);
+      if (res.length < 5) return null;
+      const mean = res.reduce((a, b) => a + b, 0) / res.length;
+      const sigma = Math.sqrt(res.reduce((a, b) => a + (b - mean) * (b - mean), 0) / (res.length - 1));
+      const center = avg[t] + mean;
+      const volPct = center > 0 ? sigma / center * 100 : 0;
+      const slopePct = avg[t - back] ? (avg[t] / avg[t - back] - 1) * 100 : 0;
+      const slopeSig = volPct > 0 ? slopePct / volPct : slopePct;
+      let agree = 0;
+      for (const ty of types) {
+        const L = lines[ty];
+        if (L[t] != null && L[t - back] != null && L[t] > L[t - back]) agree++;
+      }
+      const need = Math.ceil(types.length / 2);
+      return {
+        center, sigma, slopeSig, agree,
+        upper: center + sigma * dev, lower: center - sigma * dev,
+        trendUp: slopeSig > 0.5 && agree >= need,
+        trendDn: slopeSig < -0.5 && agree <= Math.floor(types.length / 2),
+        z: sigma > 0 ? (src[t] - center) / sigma : 0,
+      };
+    };
+
+    let fired = null;
+    for (let t = n - 1; t >= n - look && t > back + win; t--) {
+      const c = at(t), p = at(t - 1);
+      if (!c || !p) continue;
+      if (!c.trendUp) continue;
+      const crossUp = src[t] > c.center && src[t - 1] <= p.center;
+      // پولبک تمام شد: زیر باند پایین بوده و حالا بالای آن بسته شده
+      const pullEnd = src[t] > c.lower && src[t - 1] <= p.lower;
+      // روند تازه تأیید شد (قیمت از قبل بالای خط بوده ولی روند هنوز تأیید نشده بود)
+      const flip = !p.trendUp && src[t] > c.center;
+      if (crossUp || pullEnd || flip) {
+        fired = {
+          age: n - 1 - t,                        // ۰ = همین کندل بسته‌شده
+          kind: pullEnd ? 'pullback' : crossUp ? 'cross' : 'trend',
+          z: c.z, agree: c.agree, total: types.length,
+          slopeSig: c.slopeSig, center: c.center, lower: c.lower, upper: c.upper,
+          price: src[n - 1], atPrice: src[t],
+          chgSince: src[t] ? (src[n - 1] / src[t] - 1) * 100 : 0,
+        };
+        break;
+      }
+    }
+    return fired;
+  }
+
   /* وضعیت خوانا برای نمایش */
   function kernelState(mk) {
     if (!mk) return { t: 'بدون داده', c: 'muted', i: '◻️' };
@@ -542,5 +619,5 @@ const TA = (() => {
   }
 
   return { sma, ema, rsi, macd, atr, adx, analyze, btcHealth, stateOf, regime, demoKlines, clamp, orderBlocks,
-           rsiSeries, harsi, harsiState, kernelReg, multiKernel, kernelState, kernelList, KERNELS };
+           rsiSeries, harsi, harsiState, kernelReg, multiKernel, kernelSignals, kernelState, kernelList, KERNELS };
 })();

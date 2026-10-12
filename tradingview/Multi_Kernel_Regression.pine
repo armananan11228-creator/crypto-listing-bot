@@ -1,0 +1,154 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0
+// ═══════════════════════════════════════════════════════════════════════════
+//  Multi Kernel Regression — نسخه‌ی اصلاح‌شده (بدون بازترسیم)
+//  ✍️ طراحی و توسعه توسط آرمان ناصری  |  Arman Naseri
+//
+//  تفاوت‌های این نسخه با نسخه‌های رایج:
+//   ۱) برآوردگر کاملاً یک‌طرفه است ⇒ هیچ‌وقت repaint نمی‌کند
+//   ۲) باندها از انحراف «باقیمانده‌ها» ساخته می‌شوند، نه انحراف قیمت
+//   ۳) سوگیری ذاتی تأخیر برآوردگر (bias) محاسبه و حذف می‌شود
+//   ۴) حالت «ترکیب سه‌گانه»: اجماع سه هسته به‌جای یک هسته
+//   ۵) سیگنال خرید فقط روی کندل بسته‌شده صادر می‌شود (barstate.isconfirmed)
+// ═══════════════════════════════════════════════════════════════════════════
+//@version=5
+indicator("Multi Kernel Regression [Arman Naseri]", "MKR", overlay = true, max_labels_count = 500, max_bars_back = 1000)
+
+// ─────────────────────────── ورودی‌ها ───────────────────────────
+grpK   = "هسته و پهنای باند"
+mode   = input.string("Trio (Consensus)", "Kernel Mode", options = ["Trio (Consensus)", "Single"], group = grpK, tooltip = "Trio = میانگین گاوسی + اپانچنیکوف + موجی. پایدارتر از تک‌هسته.")
+single = input.string("Gaussian", "Single Kernel", group = grpK, options = ["Gaussian", "Laplace", "Logistic", "Epanechnikov", "Triangular", "Tricube", "Quartic", "Cosine", "Wave"])
+h      = input.int(14, "Bandwidth", minval = 3, maxval = 200, group = grpK, tooltip = "هرچه بزرگ‌تر، خط نرم‌تر و کندتر. اسکالپ ۷-۱۴ · چند ساعته ۱۴-۲۵ · سوئینگ ۳۰-۵۰")
+src    = input.source(close, "Source", group = grpK)
+
+grpB   = "باندها"
+devMlt = input.float(1.5, "Deviation (σ)", minval = 0.2, maxval = 5.0, step = 0.1, group = grpB)
+showBd = input.bool(true, "Show Bands", group = grpB)
+showPB = input.bool(true, "Fill Band Area", group = grpB)
+
+grpS   = "سیگنال"
+slpMin = input.float(0.5, "Min Slope (×σ)", minval = 0.0, step = 0.1, group = grpS, tooltip = "شیب خط بر حسب نوسان. زیر این مقدار = بدون روند.")
+pbBars = input.int(3, "Pullback Lookback", minval = 1, maxval = 10, group = grpS, tooltip = "حداکثر چند کندل پیش قیمت زیر باند پایین بوده باشد.")
+showSg = input.bool(true, "Show Buy/Sell Labels", group = grpS)
+
+// ─────────────────────── توابع هسته ───────────────────────
+// u = فاصله‌ی نرمال‌شده‌ی کندل از کندل فعلی (i / h)
+kVal(u, t) =>
+    au = math.abs(u)
+    out = 0.0
+    if t == "Gaussian"
+        out := math.exp(-0.5 * u * u)
+    else if t == "Laplace"
+        out := math.exp(-au) / 2.0
+    else if t == "Logistic"
+        out := 1.0 / (math.exp(u) + 2.0 + math.exp(-u))
+    else if t == "Epanechnikov"
+        out := au <= 1.0 ? 0.75 * (1.0 - u * u) : 0.0
+    else if t == "Triangular"
+        out := au <= 1.0 ? 1.0 - au : 0.0
+    else if t == "Tricube"
+        out := au <= 1.0 ? math.pow(1.0 - math.pow(au, 3), 3) : 0.0
+    else if t == "Quartic"
+        out := au <= 1.0 ? math.pow(1.0 - u * u, 2) * 15.0 / 16.0 : 0.0
+    else if t == "Cosine"
+        out := au <= 1.0 ? math.pi / 4.0 * math.cos(math.pi / 2.0 * u) : 0.0
+    else if t == "Wave"
+        out := au <= 1.0 ? (1.0 - au) * math.cos(math.pi * u) : 0.0
+    out
+
+// هسته‌هایی با دُم بی‌نهایت تا ۳ برابر پهنا جمع می‌شوند، بقیه تا خودِ پهنا
+kDepth(t) =>
+    inf = t == "Gaussian" or t == "Laplace" or t == "Logistic"
+    int(math.max(3, math.ceil(inf ? h * 3 : h)))
+
+// برآوردگر نادارایا–واتسون یک‌طرفه: فقط از گذشته استفاده می‌کند
+kReg(s, t) =>
+    d = kDepth(t)
+    num = 0.0
+    den = 0.0
+    for i = 0 to d - 1
+        w = kVal(i / h, t)
+        if w > 0
+            num += w * s[i]
+            den += w
+    den > 0 ? num / den : s
+
+// ─────────────────────── خط رگرسیون ───────────────────────
+kG = kReg(src, "Gaussian")
+kE = kReg(src, "Epanechnikov")
+kW = kReg(src, "Wave")
+kS = kReg(src, single)
+
+isTrio = mode == "Trio (Consensus)"
+line_  = isTrio ? (kG + kE + kW) / 3.0 : kS
+
+// ───────── سوگیری تأخیر + انحراف باقیمانده‌ها ─────────
+win    = int(math.max(10, math.round(h * 2)))
+resid  = src - line_
+bias   = ta.sma(resid, win)              // تأخیر سیستماتیک برآوردگر یک‌طرفه
+sigma  = ta.stdev(resid, win)            // پراکندگی واقعی حول خط
+center = line_ + bias
+upper  = center + sigma * devMlt
+lower  = center - sigma * devMlt
+
+// ───────────────── شیب، اجماع و وضعیت ─────────────────
+back     = int(math.max(2, math.round(h / 2)))
+slopePct = line_[back] != 0 ? (line_ / line_[back] - 1) * 100 : 0.0
+volPct   = center != 0 ? sigma / center * 100 : 0.0
+slopeSig = volPct > 0 ? slopePct / volPct : slopePct
+
+upG = kG > kG[back]
+upE = kE > kE[back]
+upW = kW > kW[back]
+agree = isTrio ? (upG ? 1 : 0) + (upE ? 1 : 0) + (upW ? 1 : 0) : (kS > kS[back] ? 1 : 0)
+total = isTrio ? 3 : 1
+need  = isTrio ? 2 : 1
+
+trendUp = slopeSig > slpMin and agree >= need
+trendDn = slopeSig < -slpMin and agree <= total - need
+
+zScore  = sigma > 0 ? (src - center) / sigma : 0.0
+
+// ───────────────────── سیگنال خرید ─────────────────────
+// الف) عبور قیمت به بالای خط رگرسیون در روندِ صعودی
+crossUp  = ta.crossover(src, center) and trendUp
+// ب) پایان پولبک: قیمت زیر باند پایین بوده و حالا بالای آن بسته شده
+wasLow   = ta.barssince(src < lower) <= pbBars
+pullEnd  = wasLow and src > lower and src[1] <= lower[1] and trendUp
+buySig   = (crossUp or pullEnd) and barstate.isconfirmed
+
+// فروش / خروج: شکست به زیر خط در روند نزولی یا کشیدگی شدید
+sellSig  = ((ta.crossunder(src, center) and trendDn) or (zScore > devMlt * 1.5 and ta.crossunder(src, upper))) and barstate.isconfirmed
+
+// ───────────────────────── رسم ─────────────────────────
+col = trendUp ? color.new(#22c55e, 0) : trendDn ? color.new(#ef4444, 0) : color.new(#a855f7, 0)
+
+pU = plot(showBd ? upper : na, "Upper", color.new(#7c3aed, 35), 1, plot.style_linebr)
+pL = plot(showBd ? lower : na, "Lower", color.new(#7c3aed, 35), 1, plot.style_linebr)
+fill(pU, pL, showPB ? color.new(trendUp ? #22c55e : trendDn ? #ef4444 : #a855f7, 92) : na)
+plot(center, "Kernel Line", col, 2)
+
+plotshape(showSg and buySig,  "Buy",  shape.labelup,   location.belowbar, color.new(#22c55e, 0), text = "BUY",  textcolor = color.white, size = size.tiny)
+plotshape(showSg and sellSig, "Sell", shape.labeldown, location.abovebar, color.new(#ef4444, 0), text = "SELL", textcolor = color.white, size = size.tiny)
+
+// ─────────────────────── جدول وضعیت ───────────────────────
+stateTxt = trendUp and zScore < -devMlt ? "PULLBACK ENTRY" : trendUp and agree == total ? "STRONG UPTREND" : trendUp ? "UPTREND" : trendDn and agree == 0 ? "STRONG DOWNTREND" : trendDn ? "DOWNTREND" : "RANGE"
+stateCol = trendUp ? #22c55e : trendDn ? #ef4444 : #8b98b3
+
+var table tb = table.new(position.top_right, 2, 5, border_width = 1)
+if barstate.islast
+    table.cell(tb, 0, 0, "MKR", bgcolor = color.new(#7c3aed, 20), text_color = color.white, text_size = size.small)
+    table.cell(tb, 1, 0, isTrio ? "Trio" : single, bgcolor = color.new(#7c3aed, 20), text_color = color.white, text_size = size.small)
+    table.cell(tb, 0, 1, "State", text_color = color.gray, text_size = size.tiny)
+    table.cell(tb, 1, 1, stateTxt, text_color = stateCol, text_size = size.tiny)
+    table.cell(tb, 0, 2, "Agree", text_color = color.gray, text_size = size.tiny)
+    table.cell(tb, 1, 2, str.tostring(agree) + "/" + str.tostring(total), text_color = color.white, text_size = size.tiny)
+    table.cell(tb, 0, 3, "Slope", text_color = color.gray, text_size = size.tiny)
+    table.cell(tb, 1, 3, str.tostring(slopeSig, "#.##") + "σ", text_color = color.white, text_size = size.tiny)
+    table.cell(tb, 0, 4, "Z", text_color = color.gray, text_size = size.tiny)
+    table.cell(tb, 1, 4, str.tostring(zScore, "#.##"), text_color = color.white, text_size = size.tiny)
+
+// ───────────────────────── هشدارها ─────────────────────────
+alertcondition(buySig,  "MKR Buy",  "🟢 سیگنال خرید کرنل — {{ticker}} در {{interval}}")
+alertcondition(sellSig, "MKR Sell", "🔴 سیگنال فروش کرنل — {{ticker}} در {{interval}}")
+alertcondition(ta.crossover(src, center),  "Cross Above Line", "قیمت از خط رگرسیون عبور کرد — {{ticker}}")
+alertcondition(src < lower, "Below Lower Band", "قیمت زیر باند پایین — {{ticker}}")

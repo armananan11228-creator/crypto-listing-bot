@@ -285,6 +285,13 @@ input[type=checkbox]{accent-color:var(--ac)}
 #krSeg{flex-wrap:wrap}
 #krSeg button{font-size:11px;padding:4px 7px}
 
+.fresh{margin:6px 0;padding:7px 9px;border-radius:10px;font-size:12px;line-height:1.7;
+  background:linear-gradient(145deg,#22c55e14,#7c3aed0d);border:1px solid #22c55e33}
+.fresh.hot{background:linear-gradient(145deg,#22c55e2e,#a855f71a);border-color:#22c55e80;
+  box-shadow:0 0 16px #22c55e26}
+.fresh em{font-style:normal;opacity:.75;font-size:11px}
+.fresh span{display:block;opacity:.72;font-size:11px;direction:ltr;text-align:right}
+
 /* ── امضای انگلیسی کنار عنوان ── */
 .sig{
   font-family:'Cinzel Decorative','Playfair Display','Trajan Pro','Georgia',serif;

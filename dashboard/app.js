@@ -19,7 +19,7 @@ const DEFAULTS = {
   hold: 12, maxRsi: 68,
   top: 100, amount: 10, minScore: 65, tf: '1h',
   poll: 20, auto: 15, sound: true,
-  kSet: 'trio', kBw: 14, kDev: 1.5,      // رگرسیون چندهسته‌ای: مجموعه، پهنای باند، ضریب انحراف
+  kSet: 'trio', kBw: 14, kDev: 1.5, freshMax: 2,      // رگرسیون چندهسته‌ای: مجموعه، پهنای باند، ضریب انحراف
 };
 /* مجموعه‌ی هسته‌های فعال بر اساس تنظیمات */
 const kTypes = () => CFG.kSet === 'trio'
@@ -134,6 +134,7 @@ async function scan() {
     rankRows(rows);
     rows.sort((a, b) => b.score - a.score);
     scanRows = rows;
+    if (filter === 'fresh') ensureFresh();
     lastScan = Date.now();
     updateSignals(rows);
     renderScan();
@@ -186,6 +187,46 @@ function sizeFor(riskPct) {
   if (!riskPct || riskPct <= 0) return CFG.amount;
   const dollarRisk = CFG.capital * CFG.riskPerTrade / 100;
   return Math.max(5, Math.round(dollarRisk / (riskPct / 100)));
+}
+
+/* ─── سیگنال تازه‌ی کرنل روی تایم ۱ ساعته (بارگذاری تنبل) ───
+   همیشه از کندل‌های ۱ ساعته خوانده می‌شود، مستقل از تایم‌فریم اسکن. */
+async function ensureFresh() {
+  const need = scanRows.filter(r => r.kSig === undefined).slice(0, 100);
+  if (!need.length) return;
+  $('#progress').hidden = false;
+  setProgress(0, 1, 'جست‌وجوی سیگنال تازه‌ی کرنل روی ۱ ساعته…');
+  await pool(need, async r => {
+    const key = r.symbol + '_1h';
+    let k = chartCache[key];
+    if (!k) {
+      k = demo ? TA.demoKlines(hash(key)) : await klines(r.symbol, '1h', 260);
+      chartCache[key] = k;
+    }
+    const closes = k.map(x => x.close);
+    r.kSig = TA.kernelSignals(closes, kOpt(), 12) || null;
+    r.kr1h = TA.multiKernel(closes, kOpt());
+    return true;
+  }, 8, (d, n) => setProgress(d, n, `بررسی کرنل ۱ ساعته ${d} از ${n}…`));
+  $('#progress').hidden = true;
+  renderHeader();
+}
+
+const SIGKIND = {
+  pullback: { i: '🎯', t: 'پولبک تمام شد', d: 'قیمت زیر باند پایین رفت و دوباره بالای آن بسته شد — ورود ارزان در دل روند صعودی.' },
+  cross:    { i: '↗️', t: 'عبور از خط کرنل', d: 'قیمت از زیر خط رگرسیون به بالای آن عبور کرد، در حالی که روند صعودی تأیید شده بود.' },
+  trend:    { i: '🟢', t: 'روند تازه تأیید شد', d: 'شیب و اجماع هسته‌ها تازه صعودی شدند و قیمت بالای خط رگرسیون است.' },
+};
+
+function freshBadge(r) {
+  const g = r.kSig;
+  if (!g) return '';
+  const K = SIGKIND[g.kind] || SIGKIND.trend;
+  const age = g.age === 0 ? 'همین کندل' : `${g.age} کندل پیش`;
+  const hot = g.age <= CFG.freshMax;
+  return `<div class="fresh ${hot ? 'hot' : ''}">
+    <div>${K.i} ${K.t} <em>${age} · ۱ ساعته</em></div>
+    <span>اجماع ${g.agree}/${g.total} · از سیگنال ${g.chgSince >= 0 ? '+' : ''}${g.chgSince.toFixed(2)}٪ · z=${g.z.toFixed(1)}</span></div>`;
 }
 
 /* ─────────── اردربلاک ۱ ساعته (بارگذاری تنبل) ─────────── */
@@ -437,19 +478,23 @@ function renderScan() {
   let rows = scanRows;
   if (filter === 'buy') rows = rows.filter(r => r.state.t === '🟢 بخر');
   else if (filter === 'near') rows = rows.filter(r => /بخر|نزدیک|داغ/.test(r.state.t));
+  else if (filter === 'fresh') rows = rows.filter(r => r.kSig && r.kSig.age <= CFG.freshMax)
+    .sort((a, b) => a.kSig.age - b.kSig.age || b.kSig.agree - a.kSig.agree || b.score - a.score);
   else if (filter === 'kr') rows = rows.filter(r => r.kr && (r.kr.trendUp || (r.kr.touch === 'lower' && r.kr.agree >= 2)))
     .sort((a, b) => b.kr.score - a.kr.score);
   else if (filter === 'ob') rows = rows.filter(r => r.ob && r.ob.at)
     .sort((a, b) => OBRANK[a.ob.at] - OBRANK[b.ob.at] ||
       Math.abs(a.ob.distPct) - Math.abs(b.ob.distPct));
 
-  const active = filter === 'ob' ? [] : Object.values(signals).sort((a, b) => b.at - a.at);
+  const active = (filter === 'ob' || filter === 'fresh') ? [] : Object.values(signals).sort((a, b) => b.at - a.at);
   const activeSyms = new Set(active.map(a => a.symbol));
   rows = rows.filter(r => !activeSyms.has(r.symbol));
 
   $('#empty').hidden = rows.length + active.length > 0;
   if (!rows.length && scanRows.length)
-    $('#empty').textContent = filter === 'kr'
+    $('#empty').textContent = filter === 'fresh'
+      ? `هیچ ارزی در ${CFG.freshMax + 1} کندل اخیرِ ۱ ساعته سیگنال خرید کرنل نگرفته — این یعنی بازار هنوز نقطه‌ی ورود تازه نساخته ⏳`
+      : filter === 'kr'
       ? 'هیچ ارزی الان روند صعودی تأییدشده‌ی کرنل یا پولبک به باند پایین ندارد 📐'
       : filter === 'ob'
       ? 'هیچ ارزی اردربلاک معتبر ۱ ساعته‌ی نزدیک ندارد — کمی بعد دوباره چک کن 🧱'
@@ -471,6 +516,7 @@ function renderScan() {
       </div>
       <div class="state ${r.state.c}">${r.state.t}</div>
       ${obBadge(r.ob)}
+      ${freshBadge(r)}
       ${krBadge(r.kr)}
       ${spark(r.closes)}
       <div class="kv"><span>قیمت</span><b>${fmt(r.price)}</b></div>
@@ -504,6 +550,11 @@ function renderHeader() {
     const c = scanRows.filter(r => r.ob && r.ob.at).length;
     const hasData = scanRows.some(r => r.ob);
     obBtn.textContent = '🧱 روی اردربلاک' + (hasData ? ` (${c})` : '');
+  }
+  const frBtn = $('#filterSeg button[data-f="fresh"]');
+  if (frBtn) {
+    const c = scanRows.filter(r => r.kSig && r.kSig.age <= CFG.freshMax).length;
+    frBtn.textContent = '🆕 سیگنال تازه' + (scanRows.some(r => r.kSig !== undefined) ? ` (${c})` : '');
   }
   $('#buyCount').textContent = scanRows.filter(r => r.state.t === '🟢 بخر').length + ' ارز';
   const pnl = positions.reduce((s, p) => s + (p.now ? (p.now / p.entry - 1) * p.amount : 0), 0);
@@ -571,6 +622,15 @@ function openDrawer(sym) {
         <div class="fb"><i style="width:${(f.v * 100).toFixed(0)}%"></i></div>
         <b>${(f.v * f.w * 10).toFixed(0)}</b></div>`).join('')}
     </div>
+
+    ${r.kSig ? `<div class="plan">
+      <div class="kv"><span>${(SIGKIND[r.kSig.kind] || SIGKIND.trend).i} سیگنال کرنل ۱ ساعته</span><b>${(SIGKIND[r.kSig.kind] || SIGKIND.trend).t}</b></div>
+      <div class="kv"><span>چه زمانی صادر شد</span><b class="${r.kSig.age <= CFG.freshMax ? 'up' : ''}">${r.kSig.age === 0 ? 'همین کندل بسته‌شده' : r.kSig.age + ' کندل پیش'}</b></div>
+      <div class="kv"><span>قیمت لحظه‌ی سیگنال</span><b>${fmt(r.kSig.atPrice)}</b></div>
+      <div class="kv"><span>تغییر از آن زمان</span><b class="${r.kSig.chgSince >= 0 ? 'up' : 'dn'}">${pct(r.kSig.chgSince)}</b></div>
+      <div class="kv"><span>اجماع هسته‌ها</span><b>${r.kSig.agree} از ${r.kSig.total}</b></div>
+      <p class="muted" style="font-size:12px;margin:6px 0 0">${(SIGKIND[r.kSig.kind] || SIGKIND.trend).d}</p>
+    </div>` : ''}
 
     <div class="why">
       <h3>🧭 چرا این ارز؟</h3>
@@ -1066,9 +1126,9 @@ function bindSettings() {
     kSel.value = CFG.kSet;
     kSel.onchange = () => { CFG.kSet = kSel.value; save('cfg', CFG); };
   }
-  ['s_kbw', 's_kdev'].forEach(id => {
+  ['s_kbw', 's_kdev', 's_fresh'].forEach(id => {
     const el = $('#' + id); if (!el) return;
-    const key = id === 's_kbw' ? 'kBw' : 'kDev';
+    const key = id === 's_kbw' ? 'kBw' : id === 's_kdev' ? 'kDev' : 'freshMax';
     el.value = CFG[key];
     el.onchange = () => { CFG[key] = +el.value || DEFAULTS[key]; save('cfg', CFG); };
   });
@@ -1129,6 +1189,7 @@ function init() {
     $$('#filterSeg button').forEach(x => x.classList.remove('on'));
     b.classList.add('on'); filter = b.dataset.f;
     if (filter === 'ob') await ensureOB();
+    if (filter === 'fresh') await ensureFresh();
     renderScan();
   });
   const ms = $('#minScore');

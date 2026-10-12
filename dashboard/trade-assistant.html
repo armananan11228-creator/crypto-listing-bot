@@ -295,6 +295,13 @@ input[type=checkbox]{accent-color:var(--ac)}
 #krSeg{flex-wrap:wrap}
 #krSeg button{font-size:11px;padding:4px 7px}
 
+.fresh{margin:6px 0;padding:7px 9px;border-radius:10px;font-size:12px;line-height:1.7;
+  background:linear-gradient(145deg,#22c55e14,#7c3aed0d);border:1px solid #22c55e33}
+.fresh.hot{background:linear-gradient(145deg,#22c55e2e,#a855f71a);border-color:#22c55e80;
+  box-shadow:0 0 16px #22c55e26}
+.fresh em{font-style:normal;opacity:.75;font-size:11px}
+.fresh span{display:block;opacity:.72;font-size:11px;direction:ltr;text-align:right}
+
 /* ── امضای انگلیسی کنار عنوان ── */
 .sig{
   font-family:'Cinzel Decorative','Playfair Display','Trajan Pro','Georgia',serif;
@@ -380,6 +387,7 @@ input[type=checkbox]{accent-color:var(--ac)}
       <button data-f="near">نزدیک ⏳</button>
       <button data-f="ob">🧱 روی اردربلاک</button>
       <button data-f="kr">📐 هم‌سو با کرنل</button>
+      <button data-f="fresh">🆕 سیگنال تازه</button>
       <button data-f="all">همه</button>
     </div>
     <label class="slider">حداقل امتیاز <b id="minScoreVal">65</b>
@@ -437,6 +445,7 @@ input[type=checkbox]{accent-color:var(--ac)}
     <div class="row"><label>هسته</label><select id="s_kset"></select></div>
     <div class="row"><label>پهنای باند (هرچه بیشتر، نرم‌تر)</label><input type="number" id="s_kbw" step="1" min="5" max="60" value="14"></div>
     <div class="row"><label>ضریب باند انحراف (σ)</label><input type="number" id="s_kdev" step="0.1" min="0.5" max="4" value="1.5"></div>
+    <div class="row"><label>«تازه» یعنی حداکثر چند کندل پیش</label><input type="number" id="s_fresh" step="1" min="0" max="10" value="2"></div>
   </section>
 
   <section class="card pad">
@@ -998,6 +1007,83 @@ const TA = (() => {
     };
   }
 
+  /* ═══ شکار سیگنال تازه ═══
+     همان شرط‌های Pine، ولی روی چند کندل آخر اجرا می‌شود تا بفهمیم
+     سیگنال خرید دقیقاً چند کندل پیش صادر شده است.
+       الف) عبور قیمت به بالای خط رگرسیون در روند صعودی
+       ب)  پایان پولبک: قیمت از زیر باند پایین برگشته بالا          */
+  function kernelSignals(src, opt = {}, look = 10) {
+    const h = opt.h || 14;
+    const dev = opt.dev == null ? 1.5 : opt.dev;
+    const types = opt.types && opt.types.length ? opt.types
+      : ['gaussian', 'epanechnikov', 'wave'];
+    const n = src.length;
+    const win = Math.max(10, Math.round(h * 2));
+    const back = Math.max(2, Math.round(h / 2));
+    if (n < win + back + look + 5) return null;
+
+    const lines = {};
+    types.forEach(ty => { lines[ty] = kernelReg(src, h, ty); });
+    const avg = new Array(n).fill(null);
+    for (let t = 0; t < n; t++) {
+      let s = 0, c = 0;
+      for (const ty of types) { const v = lines[ty][t]; if (v != null) { s += v; c++; } }
+      if (c === types.length) avg[t] = s / c;
+    }
+
+    /* وضعیت کامل یک کندل مشخص (فقط با داده‌ی تا همان کندل) */
+    const at = t => {
+      if (avg[t] == null || avg[t - back] == null) return null;
+      const res = [];
+      for (let i = Math.max(0, t - win + 1); i <= t; i++)
+        if (avg[i] != null) res.push(src[i] - avg[i]);
+      if (res.length < 5) return null;
+      const mean = res.reduce((a, b) => a + b, 0) / res.length;
+      const sigma = Math.sqrt(res.reduce((a, b) => a + (b - mean) * (b - mean), 0) / (res.length - 1));
+      const center = avg[t] + mean;
+      const volPct = center > 0 ? sigma / center * 100 : 0;
+      const slopePct = avg[t - back] ? (avg[t] / avg[t - back] - 1) * 100 : 0;
+      const slopeSig = volPct > 0 ? slopePct / volPct : slopePct;
+      let agree = 0;
+      for (const ty of types) {
+        const L = lines[ty];
+        if (L[t] != null && L[t - back] != null && L[t] > L[t - back]) agree++;
+      }
+      const need = Math.ceil(types.length / 2);
+      return {
+        center, sigma, slopeSig, agree,
+        upper: center + sigma * dev, lower: center - sigma * dev,
+        trendUp: slopeSig > 0.5 && agree >= need,
+        trendDn: slopeSig < -0.5 && agree <= Math.floor(types.length / 2),
+        z: sigma > 0 ? (src[t] - center) / sigma : 0,
+      };
+    };
+
+    let fired = null;
+    for (let t = n - 1; t >= n - look && t > back + win; t--) {
+      const c = at(t), p = at(t - 1);
+      if (!c || !p) continue;
+      if (!c.trendUp) continue;
+      const crossUp = src[t] > c.center && src[t - 1] <= p.center;
+      // پولبک تمام شد: زیر باند پایین بوده و حالا بالای آن بسته شده
+      const pullEnd = src[t] > c.lower && src[t - 1] <= p.lower;
+      // روند تازه تأیید شد (قیمت از قبل بالای خط بوده ولی روند هنوز تأیید نشده بود)
+      const flip = !p.trendUp && src[t] > c.center;
+      if (crossUp || pullEnd || flip) {
+        fired = {
+          age: n - 1 - t,                        // ۰ = همین کندل بسته‌شده
+          kind: pullEnd ? 'pullback' : crossUp ? 'cross' : 'trend',
+          z: c.z, agree: c.agree, total: types.length,
+          slopeSig: c.slopeSig, center: c.center, lower: c.lower, upper: c.upper,
+          price: src[n - 1], atPrice: src[t],
+          chgSince: src[t] ? (src[n - 1] / src[t] - 1) * 100 : 0,
+        };
+        break;
+      }
+    }
+    return fired;
+  }
+
   /* وضعیت خوانا برای نمایش */
   function kernelState(mk) {
     if (!mk) return { t: 'بدون داده', c: 'muted', i: '◻️' };
@@ -1019,7 +1105,7 @@ const TA = (() => {
   }
 
   return { sma, ema, rsi, macd, atr, adx, analyze, btcHealth, stateOf, regime, demoKlines, clamp, orderBlocks,
-           rsiSeries, harsi, harsiState, kernelReg, multiKernel, kernelState, kernelList, KERNELS };
+           rsiSeries, harsi, harsiState, kernelReg, multiKernel, kernelSignals, kernelState, kernelList, KERNELS };
 })();
 
 </script>
@@ -1045,7 +1131,7 @@ const DEFAULTS = {
   hold: 12, maxRsi: 68,
   top: 100, amount: 10, minScore: 65, tf: '1h',
   poll: 20, auto: 15, sound: true,
-  kSet: 'trio', kBw: 14, kDev: 1.5,      // رگرسیون چندهسته‌ای: مجموعه، پهنای باند، ضریب انحراف
+  kSet: 'trio', kBw: 14, kDev: 1.5, freshMax: 2,      // رگرسیون چندهسته‌ای: مجموعه، پهنای باند، ضریب انحراف
 };
 /* مجموعه‌ی هسته‌های فعال بر اساس تنظیمات */
 const kTypes = () => CFG.kSet === 'trio'
@@ -1160,6 +1246,7 @@ async function scan() {
     rankRows(rows);
     rows.sort((a, b) => b.score - a.score);
     scanRows = rows;
+    if (filter === 'fresh') ensureFresh();
     lastScan = Date.now();
     updateSignals(rows);
     renderScan();
@@ -1212,6 +1299,46 @@ function sizeFor(riskPct) {
   if (!riskPct || riskPct <= 0) return CFG.amount;
   const dollarRisk = CFG.capital * CFG.riskPerTrade / 100;
   return Math.max(5, Math.round(dollarRisk / (riskPct / 100)));
+}
+
+/* ─── سیگنال تازه‌ی کرنل روی تایم ۱ ساعته (بارگذاری تنبل) ───
+   همیشه از کندل‌های ۱ ساعته خوانده می‌شود، مستقل از تایم‌فریم اسکن. */
+async function ensureFresh() {
+  const need = scanRows.filter(r => r.kSig === undefined).slice(0, 100);
+  if (!need.length) return;
+  $('#progress').hidden = false;
+  setProgress(0, 1, 'جست‌وجوی سیگنال تازه‌ی کرنل روی ۱ ساعته…');
+  await pool(need, async r => {
+    const key = r.symbol + '_1h';
+    let k = chartCache[key];
+    if (!k) {
+      k = demo ? TA.demoKlines(hash(key)) : await klines(r.symbol, '1h', 260);
+      chartCache[key] = k;
+    }
+    const closes = k.map(x => x.close);
+    r.kSig = TA.kernelSignals(closes, kOpt(), 12) || null;
+    r.kr1h = TA.multiKernel(closes, kOpt());
+    return true;
+  }, 8, (d, n) => setProgress(d, n, `بررسی کرنل ۱ ساعته ${d} از ${n}…`));
+  $('#progress').hidden = true;
+  renderHeader();
+}
+
+const SIGKIND = {
+  pullback: { i: '🎯', t: 'پولبک تمام شد', d: 'قیمت زیر باند پایین رفت و دوباره بالای آن بسته شد — ورود ارزان در دل روند صعودی.' },
+  cross:    { i: '↗️', t: 'عبور از خط کرنل', d: 'قیمت از زیر خط رگرسیون به بالای آن عبور کرد، در حالی که روند صعودی تأیید شده بود.' },
+  trend:    { i: '🟢', t: 'روند تازه تأیید شد', d: 'شیب و اجماع هسته‌ها تازه صعودی شدند و قیمت بالای خط رگرسیون است.' },
+};
+
+function freshBadge(r) {
+  const g = r.kSig;
+  if (!g) return '';
+  const K = SIGKIND[g.kind] || SIGKIND.trend;
+  const age = g.age === 0 ? 'همین کندل' : `${g.age} کندل پیش`;
+  const hot = g.age <= CFG.freshMax;
+  return `<div class="fresh ${hot ? 'hot' : ''}">
+    <div>${K.i} ${K.t} <em>${age} · ۱ ساعته</em></div>
+    <span>اجماع ${g.agree}/${g.total} · از سیگنال ${g.chgSince >= 0 ? '+' : ''}${g.chgSince.toFixed(2)}٪ · z=${g.z.toFixed(1)}</span></div>`;
 }
 
 /* ─────────── اردربلاک ۱ ساعته (بارگذاری تنبل) ─────────── */
@@ -1463,19 +1590,23 @@ function renderScan() {
   let rows = scanRows;
   if (filter === 'buy') rows = rows.filter(r => r.state.t === '🟢 بخر');
   else if (filter === 'near') rows = rows.filter(r => /بخر|نزدیک|داغ/.test(r.state.t));
+  else if (filter === 'fresh') rows = rows.filter(r => r.kSig && r.kSig.age <= CFG.freshMax)
+    .sort((a, b) => a.kSig.age - b.kSig.age || b.kSig.agree - a.kSig.agree || b.score - a.score);
   else if (filter === 'kr') rows = rows.filter(r => r.kr && (r.kr.trendUp || (r.kr.touch === 'lower' && r.kr.agree >= 2)))
     .sort((a, b) => b.kr.score - a.kr.score);
   else if (filter === 'ob') rows = rows.filter(r => r.ob && r.ob.at)
     .sort((a, b) => OBRANK[a.ob.at] - OBRANK[b.ob.at] ||
       Math.abs(a.ob.distPct) - Math.abs(b.ob.distPct));
 
-  const active = filter === 'ob' ? [] : Object.values(signals).sort((a, b) => b.at - a.at);
+  const active = (filter === 'ob' || filter === 'fresh') ? [] : Object.values(signals).sort((a, b) => b.at - a.at);
   const activeSyms = new Set(active.map(a => a.symbol));
   rows = rows.filter(r => !activeSyms.has(r.symbol));
 
   $('#empty').hidden = rows.length + active.length > 0;
   if (!rows.length && scanRows.length)
-    $('#empty').textContent = filter === 'kr'
+    $('#empty').textContent = filter === 'fresh'
+      ? `هیچ ارزی در ${CFG.freshMax + 1} کندل اخیرِ ۱ ساعته سیگنال خرید کرنل نگرفته — این یعنی بازار هنوز نقطه‌ی ورود تازه نساخته ⏳`
+      : filter === 'kr'
       ? 'هیچ ارزی الان روند صعودی تأییدشده‌ی کرنل یا پولبک به باند پایین ندارد 📐'
       : filter === 'ob'
       ? 'هیچ ارزی اردربلاک معتبر ۱ ساعته‌ی نزدیک ندارد — کمی بعد دوباره چک کن 🧱'
@@ -1497,6 +1628,7 @@ function renderScan() {
       </div>
       <div class="state ${r.state.c}">${r.state.t}</div>
       ${obBadge(r.ob)}
+      ${freshBadge(r)}
       ${krBadge(r.kr)}
       ${spark(r.closes)}
       <div class="kv"><span>قیمت</span><b>${fmt(r.price)}</b></div>
@@ -1530,6 +1662,11 @@ function renderHeader() {
     const c = scanRows.filter(r => r.ob && r.ob.at).length;
     const hasData = scanRows.some(r => r.ob);
     obBtn.textContent = '🧱 روی اردربلاک' + (hasData ? ` (${c})` : '');
+  }
+  const frBtn = $('#filterSeg button[data-f="fresh"]');
+  if (frBtn) {
+    const c = scanRows.filter(r => r.kSig && r.kSig.age <= CFG.freshMax).length;
+    frBtn.textContent = '🆕 سیگنال تازه' + (scanRows.some(r => r.kSig !== undefined) ? ` (${c})` : '');
   }
   $('#buyCount').textContent = scanRows.filter(r => r.state.t === '🟢 بخر').length + ' ارز';
   const pnl = positions.reduce((s, p) => s + (p.now ? (p.now / p.entry - 1) * p.amount : 0), 0);
@@ -1597,6 +1734,15 @@ function openDrawer(sym) {
         <div class="fb"><i style="width:${(f.v * 100).toFixed(0)}%"></i></div>
         <b>${(f.v * f.w * 10).toFixed(0)}</b></div>`).join('')}
     </div>
+
+    ${r.kSig ? `<div class="plan">
+      <div class="kv"><span>${(SIGKIND[r.kSig.kind] || SIGKIND.trend).i} سیگنال کرنل ۱ ساعته</span><b>${(SIGKIND[r.kSig.kind] || SIGKIND.trend).t}</b></div>
+      <div class="kv"><span>چه زمانی صادر شد</span><b class="${r.kSig.age <= CFG.freshMax ? 'up' : ''}">${r.kSig.age === 0 ? 'همین کندل بسته‌شده' : r.kSig.age + ' کندل پیش'}</b></div>
+      <div class="kv"><span>قیمت لحظه‌ی سیگنال</span><b>${fmt(r.kSig.atPrice)}</b></div>
+      <div class="kv"><span>تغییر از آن زمان</span><b class="${r.kSig.chgSince >= 0 ? 'up' : 'dn'}">${pct(r.kSig.chgSince)}</b></div>
+      <div class="kv"><span>اجماع هسته‌ها</span><b>${r.kSig.agree} از ${r.kSig.total}</b></div>
+      <p class="muted" style="font-size:12px;margin:6px 0 0">${(SIGKIND[r.kSig.kind] || SIGKIND.trend).d}</p>
+    </div>` : ''}
 
     <div class="why">
       <h3>🧭 چرا این ارز؟</h3>
@@ -2092,9 +2238,9 @@ function bindSettings() {
     kSel.value = CFG.kSet;
     kSel.onchange = () => { CFG.kSet = kSel.value; save('cfg', CFG); };
   }
-  ['s_kbw', 's_kdev'].forEach(id => {
+  ['s_kbw', 's_kdev', 's_fresh'].forEach(id => {
     const el = $('#' + id); if (!el) return;
-    const key = id === 's_kbw' ? 'kBw' : 'kDev';
+    const key = id === 's_kbw' ? 'kBw' : id === 's_kdev' ? 'kDev' : 'freshMax';
     el.value = CFG[key];
     el.onchange = () => { CFG[key] = +el.value || DEFAULTS[key]; save('cfg', CFG); };
   });
@@ -2155,6 +2301,7 @@ function init() {
     $$('#filterSeg button').forEach(x => x.classList.remove('on'));
     b.classList.add('on'); filter = b.dataset.f;
     if (filter === 'ob') await ensureOB();
+    if (filter === 'fresh') await ensureFresh();
     renderScan();
   });
   const ms = $('#minScore');
